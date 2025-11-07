@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>관리자 페이지</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .item {
+            transition: all 0.2s;
+        }
+        .item:hover {
+            transform: translateX(5px);
+            background-color: #f3f4f6;
+        }
+        .recommended-badge {
+            background-color: #fbbf24;
+            color: #78350f;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .category-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+        }
+        .tab-button {
+            padding: 12px 24px;
+            font-weight: 600;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .tab-button.active {
+            border-bottom-color: #3B82F6;
+            color: #3B82F6;
+        }
+        .tab-button:hover {
+            background-color: #f3f4f6;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- 접근 권한 확인 메시지 -->
+    <div id="access-denied" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-8 max-w-md">
+            <h2 class="text-2xl font-bold text-red-600 mb-4">접근 거부</h2>
+            <p class="text-gray-700 mb-6">이 페이지는 관리자만 접근할 수 있습니다.</p>
+            <button onclick="location.href='index.html'" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200">
+                메인으로 돌아가기
+            </button>
+        </div>
+    </div>
+
+    <div id="admin-content" class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- 헤더 -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">관리자 페이지</h1>
+            <p class="text-gray-600">카테고리와 추천 갤러리를 관리할 수 있습니다.</p>
+        </div>
+
+        <!-- 메인으로 돌아가기 버튼 -->
+        <div class="mb-6">
+            <button onclick="location.href='index.html'" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200">
+                메인으로 돌아가기
+            </button>
+        </div>
+
+        <!-- 탭 메뉴 -->
+        <div class="bg-white rounded-lg shadow-md mb-6">
+            <div class="flex border-b">
+                <button class="tab-button active" onclick="switchTab('categories')">
+                    카테고리 관리
+                </button>
+                <button class="tab-button" onclick="switchTab('recommended')">
+                    추천 갤러리 관리
+                </button>
+            </div>
+        </div>
+
+        <!-- 카테고리 관리 탭 -->
+        <div id="tab-categories" class="tab-content active">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">카테고리 목록</h2>
+                <div id="categoryList" class="space-y-3">
+                    <!-- 카테고리 아이템들이 여기에 동적으로 추가됩니다 -->
+                </div>
+                <div id="emptyCategoryMessage" class="text-center text-gray-500 py-8 hidden">
+                    등록된 카테고리가 없습니다.
+                </div>
+            </div>
+        </div>
+
+        <!-- 추천 갤러리 관리 탭 -->
+        <div id="tab-recommended" class="tab-content">
+            <!-- 필터 -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">필터</h2>
+                <div class="flex gap-4 flex-wrap">
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">카테고리</label>
+                        <select id="filterCategory" onchange="applyFilter()" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">전체</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">추천 상태</label>
+                        <select id="filterRecommended" onchange="applyFilter()" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">전체</option>
+                            <option value="1">추천됨</option>
+                            <option value="0">미추천</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="resetFilter()" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-200">
+                            필터 초기화
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 음악 목록 -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">음악 목록</h2>
+                <div id="musicList" class="space-y-3">
+                    <!-- 음악 아이템들이 여기에 동적으로 추가됩니다 -->
+                </div>
+                <div id="emptyMusicMessage" class="text-center text-gray-500 py-8 hidden">
+                    등록된 음악이 없습니다.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 카테고리 편집 모달 -->
+    <div id="editModal" class="modal">
+        <div class="bg-white rounded-lg shadow-xl p-8 max-w-md w-full mx-4">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">카테고리 편집</h2>
+            <input type="hidden" id="oldCategoryName">
+            <div class="mb-4">
+                <label class="block text-gray-700 font-semibold mb-2">카테고리명</label>
+                <input type="text" id="newCategoryName" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="카테고리명 입력">
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 font-semibold mb-2">카테고리 분류</label>
+                <select id="editCategoryClassification" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">미분류</option>
+                    <option value="인물">인물</option>
+                    <option value="패션">패션</option>
+                    <option value="화보">화보</option>
+                    <option value="시네마틱">시네마틱</option>
+                </select>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button onclick="closeEditModal()" class="px-6 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-200">
+                    취소
+                </button>
+                <button onclick="updateCategory()" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-200">
+                    저장
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentTab = 'categories';
+        let allMusicData = [];
+        let filteredMusicData = [];
+        let allCategories = [];
+        let categoryDetailsMap = {};
+
+        // 페이지 로드 시 관리자 권한 확인 및 데이터 로드
+        document.addEventListener('DOMContentLoaded', async function() {
+            const hasAccess = await checkAdminAccess();
+            if (hasAccess) {
+                loadCategories();
+                loadMusicList();
+            }
+        });
+
+        // 관리자 권한 확인
+        async function checkAdminAccess() {
+            try {
+                const response = await fetch('api.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ action: 'checkSession' })
+                });
+
+                const data = await response.json();
+
+                if (!data.loggedin || data.role !== 'admin') {
+                    document.getElementById('access-denied').classList.remove('hidden');
+                    document.getElementById('admin-content').style.display = 'none';
+                    return false;
+                }
+
+                return true;
+            } catch (error) {
+                console.error('Error checking admin access:', error);
+                document.getElementById('access-denied').classList.remove('hidden');
+                document.getElementById('admin-content').style.display = 'none';
+                return false;
+            }
+        }
+
+        // 탭 전환
+        function switchTab(tabName) {
+            currentTab = tabName;
+
+            // 탭 버튼 활성화 상태 변경
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // 탭 컨텐츠 표시/숨김
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+
+        // ========== 카테고리 관리 함수들 ==========
+
+        // 카테고리 목록 불러오기
+        async function loadCategories() {
+            try {
+                const response = await fetch('api.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ action: 'getCategories' })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const categoryDetails = data.categoryDetails || data.categories.map(cat => ({
+                        name: cat,
+                        classification: null
+                    }));
+                    allCategories = data.categories || [];
+                    renderCategories(categoryDetails);
+                    renderCategoryFilter();
+                } else {
+                    alert('카테고리 목록 불러오기 실패: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error loading categories:', error);
+                alert('카테고리 목록을 불러오는 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 분류별 색상 매핑
+        function getClassificationColor(classification) {
+            const colors = {
+                '인물': {
+                    bg: 'bg-blue-100',
+                    border: 'border-blue-400',
+                    text: 'text-blue-800',
+                    badge: 'bg-blue-500',
+                    editBtn: 'bg-blue-500 hover:bg-blue-600',
+                    deleteBtn: 'bg-blue-700 hover:bg-blue-800',
+                    hex: '#3B82F6'
+                },
+                '패션': {
+                    bg: 'bg-pink-100',
+                    border: 'border-pink-400',
+                    text: 'text-pink-800',
+                    badge: 'bg-pink-500',
+                    editBtn: 'bg-pink-500 hover:bg-pink-600',
+                    deleteBtn: 'bg-pink-700 hover:bg-pink-800',
+                    hex: '#EC4899'
+                },
+                '화보': {
+                    bg: 'bg-green-100',
+                    border: 'border-green-400',
+                    text: 'text-green-800',
+                    badge: 'bg-green-500',
+                    editBtn: 'bg-green-500 hover:bg-green-600',
+                    deleteBtn: 'bg-green-700 hover:bg-green-800',
+                    hex: '#10B981'
+                },
+                '시네마틱': {
+                    bg: 'bg-purple-100',
+                    border: 'border-purple-400',
+                    text: 'text-purple-800',
+                    badge: 'bg-purple-500',
+                    editBtn: 'bg-purple-500 hover:bg-purple-600',
+                    deleteBtn: 'bg-purple-700 hover:bg-purple-800',
+                    hex: '#8B5CF6'
+                }
+            };
+            return colors[classification] || {
+                bg: 'bg-gray-100',
+                border: 'border-gray-400',
+                text: 'text-gray-800',
+                badge: 'bg-gray-500',
+                editBtn: 'bg-gray-500 hover:bg-gray-600',
+                deleteBtn: 'bg-gray-700 hover:bg-gray-800',
+                hex: '#6B7280'
+            };
+        }
+
+        // 카테고리 목록 렌더링
+        function renderCategories(categoryDetails) {
+            const categoryList = document.getElementById('categoryList');
+            const emptyMessage = document.getElementById('emptyCategoryMessage');
+
+            if (!categoryDetails || categoryDetails.length === 0) {
+                categoryList.innerHTML = '';
+                emptyMessage.classList.remove('hidden');
+            } else {
+                emptyMessage.classList.add('hidden');
+
+                categoryDetailsMap = {};
+                categoryDetails.forEach(cat => {
+                    categoryDetailsMap[cat.name] = cat.classification;
+                });
+
+                categoryList.innerHTML = categoryDetails.map(category => {
+                    const colors = getClassificationColor(category.classification);
+                    const classificationLabel = category.classification || '미분류';
+
+                    return `
+                        <div class="item flex items-center justify-between p-4 border-2 ${colors.border} ${colors.bg} rounded-lg">
+                            <div class="flex items-center space-x-3">
+                                <span class="text-lg font-medium ${colors.text}">${escapeHtml(category.name)}</span>
+                            </div>
+                            <div class="space-x-2">
+                                <button onclick="openEditModal('${escapeHtml(category.name)}', '${escapeHtml(category.classification || '')}')\" class="px-4 py-2 ${colors.editBtn} text-white font-semibold rounded transition duration-200">
+                                    편집
+                                </button>
+                                <button onclick="deleteCategory('${escapeHtml(category.name)}')\" class="px-4 py-2 ${colors.deleteBtn} text-white font-semibold rounded transition duration-200">
+                                    삭제
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        // 편집 모달 열기
+        function openEditModal(categoryName, classification) {
+            document.getElementById('oldCategoryName').value = categoryName;
+            document.getElementById('newCategoryName').value = categoryName;
+            document.getElementById('editCategoryClassification').value = classification || '';
+
+            document.getElementById('editModal').classList.add('active');
+        }
+
+        // 수정 모달 닫기
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+        }
+
+        // 카테고리 업데이트 (이름 및 분류 변경)
+        async function updateCategory() {
+            const oldCategoryName = document.getElementById('oldCategoryName').value.trim();
+            const newCategoryName = document.getElementById('newCategoryName').value.trim();
+            const newClassification = document.getElementById('editCategoryClassification').value.trim();
+
+            if (!newCategoryName) {
+                alert('카테고리명을 입력해주세요.');
+                return;
+            }
+
+            try {
+                const response = await fetch('api.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'updateCategory',
+                        oldCategoryName: oldCategoryName,
+                        newCategoryName: newCategoryName,
+                        classification: newClassification
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(data.message);
+                    closeEditModal();
+                    loadCategories();
+                    loadMusicList(); // 음악 목록도 새로고침
+                    notifyMainPage('categoryUpdated');
+                } else {
+                    alert('카테고리 변경 실패: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error updating category:', error);
+                alert('카테고리 변경 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 카테고리 삭제
+        async function deleteCategory(categoryName) {
+            if (!confirm(`"${categoryName}" 카테고리를 삭제하시겠습니까?\n이 카테고리를 사용하는 음악들의 카테고리가 제거됩니다.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch('api.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'deleteCategory',
+                        categoryName: categoryName
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(data.message);
+                    loadCategories();
+                    loadMusicList(); // 음악 목록도 새로고침
+                    notifyMainPage('categoryUpdated');
+                } else {
+                    alert('카테고리 삭제 실패: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error deleting category:', error);
+                alert('카테고리 삭제 중 오류가 발생했습니다.');
+            }
+        }
+
+        // ========== 추천 갤러리 관리 함수들 ==========
+
+        // 음악 목록 불러오기
+        async function loadMusicList() {
+            try {
+                const response = await fetch('api.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ action: 'loadAllMusic' })
+                });
+
+                const data = await response.json();
+                console.log('loadAllMusic response:', data);
+
+                if (data.success) {
+                    allMusicData = data.musicList || [];
+                    filteredMusicData = allMusicData;
+                    renderMusicList(filteredMusicData);
+                    console.log('Music list loaded:', allMusicData.length, 'items');
+                } else {
+                    console.error('음악 목록 불러오기 실패:', data.message);
+                    alert('음악 목록 불러오기 실패: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error loading music list:', error);
+                alert('음악 목록을 불러오는 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 카테고리 필터 렌더링
+        function renderCategoryFilter() {
+            const filterCategory = document.getElementById('filterCategory');
+            const currentValue = filterCategory.value;
+
+            filterCategory.innerHTML = '<option value="">전체</option>';
+            allCategories.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                if (cat === currentValue) {
+                    option.selected = true;
+                }
+                filterCategory.appendChild(option);
+            });
+        }
+
+        // 필터 적용
+        function applyFilter() {
+            const categoryFilter = document.getElementById('filterCategory').value;
+            const recommendedFilter = document.getElementById('filterRecommended').value;
+
+            filteredMusicData = allMusicData.filter(music => {
+                let match = true;
+
+                if (categoryFilter && music.category !== categoryFilter) {
+                    match = false;
+                }
+
+                if (recommendedFilter !== '' && music.recommended != recommendedFilter) {
+                    match = false;
+                }
+
+                return match;
+            });
+
+            renderMusicList(filteredMusicData);
+        }
+
+        // 필터 초기화
+        function resetFilter() {
+            document.getElementById('filterCategory').value = '';
+            document.getElementById('filterRecommended').value = '';
+            applyFilter();
+        }
+
+        // 음악 목록 렌더링
+        function renderMusicList(musicList) {
+            const musicListContainer = document.getElementById('musicList');
+            const emptyMessage = document.getElementById('emptyMusicMessage');
+
+            if (!musicList || musicList.length === 0) {
+                musicListContainer.innerHTML = '';
+                emptyMessage.classList.remove('hidden');
+            } else {
+                emptyMessage.classList.add('hidden');
+
+                musicListContainer.innerHTML = musicList.map(music => {
+                    const isRecommended = music.recommended == 1;
+                    const recommendedBadge = isRecommended ? '<span class="recommended-badge ml-2">⭐ 추천</span>' : '';
+                    const colors = getClassificationColor(music.classification);
+                    const categoryBadge = music.category ? `<span class="category-badge ml-2" style="background-color: ${colors.hex};">${escapeHtml(music.category)}</span>` : '';
+
+                    const buttonColor = isRecommended ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-blue-600 hover:bg-blue-700';
+                    const buttonText = isRecommended ? '추천 해제' : '추천 추가';
+                    const buttonIcon = isRecommended ? '☆' : '⭐';
+
+                    return `
+                        <div class="item flex items-center justify-between p-4 border-2 border-gray-300 rounded-lg bg-white" data-music-id="${music.id}">
+                            <div class="flex items-center space-x-3 flex-1">
+                                <span class="text-lg font-medium text-gray-800">${escapeHtml(music.name)}</span>
+                                ${categoryBadge}
+                                <span class="recommended-status" data-music-id="${music.id}">${recommendedBadge}</span>
+                            </div>
+                            <div class="space-x-2">
+                                <button onclick="toggleRecommended(${music.id}, ${isRecommended ? 1 : 0})"
+                                        class="recommend-btn px-4 py-2 ${buttonColor} text-white font-semibold rounded transition duration-200"
+                                        data-music-id="${music.id}">
+                                    ${buttonIcon} ${buttonText}
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        // 추천 토글
+        async function toggleRecommended(musicId, currentState) {
+            const newState = currentState ? 0 : 1;
+            console.log('toggleRecommended called:', { musicId, currentState, newState });
+
+            // 즉시 UI 업데이트 (버튼과 배지)
+            const button = document.querySelector(`.recommend-btn[data-music-id="${musicId}"]`);
+            const statusSpan = document.querySelector(`.recommended-status[data-music-id="${musicId}"]`);
+
+            if (button) {
+                button.disabled = true; // 중복 클릭 방지
+            }
+
+            try {
+                const response = await fetch('api.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'toggleRecommended',
+                        musicId: musicId,
+                        recommended: newState
+                    })
+                });
+
+                const data = await response.json();
+                console.log('toggleRecommended response:', data);
+
+                if (data.success) {
+                    // 로컬 데이터 업데이트
+                    const music = allMusicData.find(m => m.id === musicId);
+                    if (music) {
+                        music.recommended = newState;
+                        console.log('Updated music data:', music);
+                    }
+
+                    // UI 즉시 업데이트
+                    if (button) {
+                        const isRecommended = newState == 1;
+                        const buttonColor = isRecommended ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-blue-600 hover:bg-blue-700';
+                        const buttonText = isRecommended ? '추천 해제' : '추천 추가';
+                        const buttonIcon = isRecommended ? '☆' : '⭐';
+
+                        button.className = `recommend-btn px-4 py-2 ${buttonColor} text-white font-semibold rounded transition duration-200`;
+                        button.innerHTML = `${buttonIcon} ${buttonText}`;
+                        button.onclick = function() { toggleRecommended(musicId, isRecommended ? 1 : 0); };
+                        button.disabled = false;
+                    }
+
+                    if (statusSpan) {
+                        statusSpan.innerHTML = newState == 1 ? '<span class="recommended-badge ml-2">⭐ 추천</span>' : '';
+                    }
+
+                    // 메인 페이지에 알림
+                    notifyMainPage('recommendedUpdated');
+
+                } else {
+                    console.error('Toggle failed:', data.message);
+                    alert('추천 상태 변경 실패: ' + data.message);
+
+                    // 실패 시 버튼 복구
+                    if (button) {
+                        button.disabled = false;
+                    }
+                }
+            } catch (error) {
+                console.error('Error toggling recommended:', error);
+                alert('추천 상태 변경 중 오류가 발생했습니다.');
+
+                // 에러 시 버튼 복구
+                if (button) {
+                    button.disabled = false;
+                }
+            }
+        }
+
+        // ========== 공통 함수들 ==========
+
+        // HTML 이스케이프 함수
+        function escapeHtml(text) {
+            if (!text) return '';
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return String(text).replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // 메인 페이지에 업데이트 알림
+        function notifyMainPage(eventType) {
+            localStorage.setItem('adminUpdateEvent', JSON.stringify({
+                type: eventType,
+                timestamp: Date.now()
+            }));
+        }
+
+        // 모달 외부 클릭 시 닫기
+        document.getElementById('editModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeEditModal();
+            }
+        });
+    </script>
+</body>
+</html>

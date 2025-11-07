@@ -1,0 +1,12 @@
+[
+  {
+    "origin": [
+      "https://pixelplanet-95dd9.web.app",
+      "https://pixelplanet-95dd9.firebaseapp.com",
+      "https://*.pixelsunday.com"
+    ],
+    "method": ["GET", "HEAD", "PUT", "POST", "DELETE"],
+    "maxAgeSeconds": 3600,
+    "responseHeader": ["Content-Type", "Authorization", "Content-Length", "User-Agent", "x-goog-resumable"]
+  }
+]

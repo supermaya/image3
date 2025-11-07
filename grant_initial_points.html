@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>기존 회원 포인트 지급</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            color: #856404;
+        }
+        .info {
+            background: #d1ecf1;
+            border: 1px solid #17a2b8;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            color: #0c5460;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #5a6fd8;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .danger {
+            background: #dc3545;
+        }
+        .danger:hover {
+            background: #c82333;
+        }
+        #log {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .log-item {
+            margin-bottom: 5px;
+        }
+        .log-success {
+            color: #28a745;
+        }
+        .log-error {
+            color: #dc3545;
+        }
+        .log-info {
+            color: #17a2b8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎁 기존 회원 포인트 지급</h1>
+
+        <div class="warning">
+            <strong>⚠️ 주의사항</strong>
+            <ul>
+                <li>이 작업은 <strong>한 번만</strong> 실행해야 합니다.</li>
+                <li>모든 기존 회원에게 <strong>1000P</strong>가 walletBalance에 지급됩니다.</li>
+                <li>이미 포인트를 받은 회원은 중복 지급되지 않습니다.</li>
+                <li>작업 전 데이터베이스 백업을 권장합니다.</li>
+            </ul>
+        </div>
+
+        <div class="info">
+            <strong>ℹ️ 작업 내용</strong>
+            <ul>
+                <li>dailyPoints가 1000 미만인 회원에게 1000P 지급</li>
+                <li>walletBalance가 없거나 0인 회원에게 1000P 지급</li>
+                <li>모든 작업은 Firestore에 기록됩니다</li>
+            </ul>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <button id="preview-btn" onclick="previewUsers()">👀 대상 회원 미리보기</button>
+            <button id="execute-btn" class="danger" onclick="executeGrantPoints()" disabled>
+                🚀 포인트 지급 실행
+            </button>
+        </div>
+
+        <div id="log"></div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getFirestore, collection, getDocs, doc, updateDoc, addDoc, query } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+        // Firebase 설정 (index.html과 동일하게)
+        const firebaseConfig = {
+            apiKey: "AIzaSyAChI2Lr2RgLxIJWg-NCafGhbgo7MHfpLA",
+            authDomain: "pixelplanet-95dd9.firebaseapp.com",
+            projectId: "pixelplanet-95dd9",
+            storageBucket: "pixelplanet-95dd9.firebasestorage.app",
+            messagingSenderId: "895107624648",
+            appId: "1:895107624648:web:f928b2e9156691fab97ffd",
+            measurementId: "G-4JVYXYZPW0"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        window.db = db;
+        window.collection = collection;
+        window.getDocs = getDocs;
+        window.doc = doc;
+        window.updateDoc = updateDoc;
+        window.addDoc = addDoc;
+        window.query = query;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const logItem = document.createElement('div');
+            logItem.className = `log-item log-${type}`;
+            logItem.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(logItem);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        window.log = log;
+    </script>
+
+    <script>
+        let eligibleUsers = [];
+
+        async function previewUsers() {
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML = '';
+            log('대상 회원 조회 중...', 'info');
+
+            try {
+                const usersRef = window.collection(window.db, 'users');
+                const usersSnapshot = await window.getDocs(usersRef);
+
+                eligibleUsers = [];
+                let totalUsers = 0;
+
+                usersSnapshot.forEach((doc) => {
+                    totalUsers++;
+                    const userData = doc.data();
+                    const userId = doc.id;
+                    const email = userData.email || 'Unknown';
+                    const walletBalance = userData.walletBalance || 0;
+                    const dailyPoints = userData.dailyPoints || 0;
+
+                    // 조건: walletBalance가 1000 미만인 회원 (기존 회원들에게 1000P 지급)
+                    if (walletBalance < 1000) {
+                        eligibleUsers.push({
+                            userId: userId,
+                            email: email,
+                            currentWallet: walletBalance,
+                            currentDaily: dailyPoints
+                        });
+                    }
+                });
+
+                log(`총 회원 수: ${totalUsers}명`, 'info');
+                log(`포인트 지급 대상: ${eligibleUsers.length}명`, 'success');
+
+                if (eligibleUsers.length > 0) {
+                    log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'info');
+                    log('대상 회원 목록:', 'info');
+                    eligibleUsers.forEach((user, index) => {
+                        log(`${index + 1}. ${user.email} (지갑: ${user.currentWallet}P, 일일: ${user.currentDaily}P)`, 'info');
+                    });
+                    log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'info');
+
+                    // 실행 버튼 활성화
+                    document.getElementById('execute-btn').disabled = false;
+                    log('✅ "포인트 지급 실행" 버튼이 활성화되었습니다.', 'success');
+                } else {
+                    log('포인트 지급이 필요한 회원이 없습니다.', 'info');
+                    document.getElementById('execute-btn').disabled = true;
+                }
+
+            } catch (error) {
+                log(`오류 발생: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+
+        async function executeGrantPoints() {
+            if (eligibleUsers.length === 0) {
+                alert('먼저 "대상 회원 미리보기"를 실행하세요.');
+                return;
+            }
+
+            const confirmed = confirm(
+                `${eligibleUsers.length}명의 회원에게 1000P를 지급하시겠습니까?\n\n` +
+                `이 작업은 되돌릴 수 없습니다!`
+            );
+
+            if (!confirmed) {
+                log('작업이 취소되었습니다.', 'info');
+                return;
+            }
+
+            // 버튼 비활성화
+            document.getElementById('preview-btn').disabled = true;
+            document.getElementById('execute-btn').disabled = true;
+
+            log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'info');
+            log('포인트 지급 시작...', 'info');
+
+            let successCount = 0;
+            let failCount = 0;
+
+            for (let i = 0; i < eligibleUsers.length; i++) {
+                const user = eligibleUsers[i];
+                try {
+                    // walletBalance 업데이트
+                    const userRef = window.doc(window.db, 'users', user.userId);
+                    await window.updateDoc(userRef, {
+                        walletBalance: 1000
+                    });
+
+                    // 거래 내역 추가
+                    const transactionRef = window.collection(window.db, 'pointTransactions');
+                    await window.addDoc(transactionRef, {
+                        userId: user.userId,
+                        type: 'admin_grant',
+                        amount: 1000,
+                        description: '기존 회원 보상 포인트',
+                        createdAt: new Date()
+                    });
+
+                    successCount++;
+                    log(`✅ [${i + 1}/${eligibleUsers.length}] ${user.email} - 1000P 지급 완료`, 'success');
+
+                } catch (error) {
+                    failCount++;
+                    log(`❌ [${i + 1}/${eligibleUsers.length}] ${user.email} - 실패: ${error.message}`, 'error');
+                }
+
+                // 진행률 표시
+                if ((i + 1) % 10 === 0) {
+                    log(`진행률: ${i + 1}/${eligibleUsers.length} (${Math.round((i + 1) / eligibleUsers.length * 100)}%)`, 'info');
+                }
+            }
+
+            log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'info');
+            log(`작업 완료!`, 'success');
+            log(`성공: ${successCount}명`, 'success');
+            if (failCount > 0) {
+                log(`실패: ${failCount}명`, 'error');
+            }
+            log(`총 지급 포인트: ${successCount * 1000}P`, 'success');
+
+            alert(`작업 완료!\n성공: ${successCount}명\n실패: ${failCount}명`);
+        }
+
+        window.previewUsers = previewUsers;
+        window.executeGrantPoints = executeGrantPoints;
+    </script>
+</body>
+</html>

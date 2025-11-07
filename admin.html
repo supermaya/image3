@@ -1,0 +1,2178 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>관리자 페이지</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, addDoc, query, orderBy, getDocs, where, deleteDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+        import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
+
+        // Firebase 설정
+        const firebaseConfig = {
+            apiKey: "AIzaSyAChI2Lr2RgLxIJWg-NCafGhbgo7MHfpLA",
+            authDomain: "pixelplanet-95dd9.firebaseapp.com",
+            projectId: "pixelplanet-95dd9",
+            storageBucket: "pixelplanet-95dd9.firebasestorage.app",
+            messagingSenderId: "895107624648",
+            appId: "1:895107624648:web:f928b2e9156691fab97ffd",
+            measurementId: "G-4JVYXYZPW0"
+        };
+
+        // Firebase 초기화
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const storage = getStorage(app);
+
+        // 전역으로 노출
+        window.firebaseAuth = auth;
+        window.firebaseDb = db;
+        window.firebaseStorage = storage;
+        window.firebaseOnAuthStateChanged = onAuthStateChanged;
+        window.firebaseSignOut = signOut;
+        window.firebaseDoc = doc;
+        window.firebaseSetDoc = setDoc;
+        window.firebaseGetDoc = getDoc;
+        window.firebaseUpdateDoc = updateDoc;
+        window.firebaseDeleteDoc = deleteDoc;
+        window.firebaseCollection = collection;
+        window.firebaseAddDoc = addDoc;
+        window.firebaseQuery = query;
+        window.firebaseOrderBy = orderBy;
+        window.firebaseGetDocs = getDocs;
+        window.firebaseWhere = where;
+        window.firebaseWriteBatch = writeBatch;
+        window.firebaseStorageRef = ref;
+        window.firebaseUploadBytes = uploadBytes;
+        window.firebaseGetDownloadURL = getDownloadURL;
+        window.firebaseDeleteObject = deleteObject;
+    </script>
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .item {
+            transition: all 0.2s;
+        }
+        .item:hover {
+            transform: translateX(5px);
+            background-color: #f3f4f6;
+        }
+        .recommended-badge {
+            background-color: #fbbf24;
+            color: #78350f;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .category-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+        }
+        .tab-button {
+            padding: 12px 24px;
+            font-weight: 600;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .tab-button.active {
+            border-bottom-color: #3B82F6;
+            color: #3B82F6;
+        }
+        .tab-button:hover {
+            background-color: #f3f4f6;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- 접근 권한 확인 메시지 -->
+    <div id="access-denied" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-8 max-w-md">
+            <h2 class="text-2xl font-bold text-red-600 mb-4">접근 거부</h2>
+            <p class="text-gray-700 mb-6">이 페이지는 관리자만 접근할 수 있습니다.</p>
+            <button onclick="location.href='index.html'" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200">
+                메인으로 돌아가기
+            </button>
+        </div>
+    </div>
+
+    <div id="admin-content" class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- 헤더 -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">관리자 페이지</h1>
+            <p class="text-gray-600">카테고리와 추천 갤러리를 관리할 수 있습니다.</p>
+        </div>
+
+        <!-- 메인으로 돌아가기 버튼 -->
+        <div class="mb-6">
+            <button onclick="location.href='index.html'" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200">
+                메인으로 돌아가기
+            </button>
+        </div>
+
+        <!-- 탭 메뉴 -->
+        <div class="bg-white rounded-lg shadow-md mb-6">
+            <div class="flex border-b">
+                <button class="tab-button active" onclick="switchTab('categories')">
+                    카테고리 관리
+                </button>
+                <button class="tab-button" onclick="switchTab('recommended')">
+                    추천 갤러리 관리
+                </button>
+                <button class="tab-button" onclick="switchTab('content')">
+                    콘텐츠 관리
+                </button>
+                <button class="tab-button" onclick="switchTab('users')">
+                    회원 관리
+                </button>
+                <button class="tab-button" onclick="switchTab('cleanup')">
+                    🔧 데이터 정리
+                </button>
+                <button class="tab-button" onclick="switchTab('migration')">
+                    🔄 마이그레이션
+                </button>
+            </div>
+        </div>
+
+        <!-- 카테고리 관리 탭 -->
+        <div id="tab-categories" class="tab-content active">
+            <!-- 카테고리 추가 섹션 -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">✨ 새 카테고리 추가</h2>
+                <div class="flex gap-4 flex-wrap items-end">
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="block text-gray-700 font-semibold mb-2">최상위 섹션</label>
+                        <select id="newCategoryTopSection" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="visual-mode">Looks & Lines</option>
+                            <option value="momentary">MOMENTARY</option>
+                            <option value="chronicles">CHRONICLES</option>
+                        </select>
+                    </div>
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="block text-gray-700 font-semibold mb-2">카테고리명</label>
+                        <input type="text" id="newCategoryNameInput" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="카테고리명 입력">
+                    </div>
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="block text-gray-700 font-semibold mb-2">카테고리 분류</label>
+                        <select id="newCategoryClassification" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">미분류</option>
+                            <option value="인물">인물</option>
+                            <option value="패션">패션</option>
+                            <option value="화보">화보</option>
+                            <option value="시네마틱">시네마틱</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center">
+                        <label class="flex items-center cursor-pointer">
+                            <input type="checkbox" id="newCategoryIsAdult" class="w-5 h-5 text-red-600 border-gray-300 rounded focus:ring-red-500">
+                            <span class="ml-2 text-gray-700 font-semibold">🔞 성인용</span>
+                        </label>
+                    </div>
+                    <div>
+                        <button onclick="addNewCategory()" class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition duration-200">
+                            추가
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 카테고리 목록 섹션 -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800">카테고리 목록</h2>
+                    <div class="flex gap-2">
+                        <button onclick="filterCategoriesByTopSection('all')" id="categoryFilter-all" class="px-4 py-2 bg-gray-600 text-white font-semibold rounded-lg transition duration-200">
+                            전체
+                        </button>
+                        <button onclick="filterCategoriesByTopSection('visual-mode')" id="categoryFilter-visual-mode" class="px-4 py-2 bg-gray-300 text-gray-700 font-semibold rounded-lg transition duration-200">
+                            Looks & Lines
+                        </button>
+                        <button onclick="filterCategoriesByTopSection('momentary')" id="categoryFilter-momentary" class="px-4 py-2 bg-gray-300 text-gray-700 font-semibold rounded-lg transition duration-200">
+                            MOMENTARY
+                        </button>
+                        <button onclick="filterCategoriesByTopSection('chronicles')" id="categoryFilter-chronicles" class="px-4 py-2 bg-gray-300 text-gray-700 font-semibold rounded-lg transition duration-200">
+                            CHRONICLES
+                        </button>
+                    </div>
+                </div>
+                <div id="categoryList" class="space-y-3">
+                    <!-- 카테고리 아이템들이 여기에 동적으로 추가됩니다 -->
+                </div>
+                <div id="emptyCategoryMessage" class="text-center text-gray-500 py-8 hidden">
+                    등록된 카테고리가 없습니다.
+                </div>
+            </div>
+        </div>
+
+        <!-- 추천 갤러리 관리 탭 -->
+        <div id="tab-recommended" class="tab-content">
+            <!-- 필터 -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">필터</h2>
+                <div class="flex gap-4 flex-wrap">
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">최상위 섹션</label>
+                        <select id="filterTopSection" onchange="applyFilter()" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">전체</option>
+                            <option value="visual-mode">Looks & Lines</option>
+                            <option value="momentary">MOMENTARY</option>
+                            <option value="chronicles">CHRONICLES</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">카테고리</label>
+                        <select id="filterCategory" onchange="applyFilter()" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">전체</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">추천 상태</label>
+                        <select id="filterRecommended" onchange="applyFilter()" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">전체</option>
+                            <option value="1">추천됨</option>
+                            <option value="0">미추천</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="resetFilter()" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-200">
+                            필터 초기화
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 음악 목록 -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">음악 목록</h2>
+                <div id="musicList" class="space-y-3">
+                    <!-- 음악 아이템들이 여기에 동적으로 추가됩니다 -->
+                </div>
+                <div id="emptyMusicMessage" class="text-center text-gray-500 py-8 hidden">
+                    등록된 음악이 없습니다.
+                </div>
+            </div>
+        </div>
+
+        <!-- 콘텐츠 관리 탭 -->
+        <div id="tab-content" class="tab-content">
+            <!-- 필터 및 검색 -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">🔍 검색 및 필터</h2>
+                <div class="flex gap-4 flex-wrap">
+                    <div class="flex-1 min-w-[200px]">
+                        <input type="text" id="searchContentKeyword" placeholder="제목으로 검색..."
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <select id="filterContentTopSection" onchange="applyContentFilter()" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">전체 섹션</option>
+                            <option value="visual-mode">Looks & Lines</option>
+                            <option value="momentary">MOMENTARY</option>
+                            <option value="chronicles">CHRONICLES</option>
+                        </select>
+                    </div>
+                    <div>
+                        <select id="filterContentCategory" onchange="applyContentFilter()" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">전체 카테고리</option>
+                        </select>
+                    </div>
+                    <div>
+                        <button onclick="applyContentFilter()" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-200">
+                            검색
+                        </button>
+                    </div>
+                    <div>
+                        <button onclick="resetContentFilter()" class="px-6 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition duration-200">
+                            초기화
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 콘텐츠 목록 -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">📋 콘텐츠 목록</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead>
+                            <tr class="bg-gray-100 border-b">
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">썸네일</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">제목</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">카테고리</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">추천</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">업로드일</th>
+                                <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">작업</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contentList">
+                            <!-- 콘텐츠 목록이 여기에 동적으로 추가됩니다 -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="emptyContentMessage" class="text-center text-gray-500 py-8 hidden">
+                    콘텐츠가 없습니다.
+                </div>
+            </div>
+        </div>
+
+        <!-- 데이터 정리 탭 -->
+        <div id="tab-cleanup" class="tab-content">
+            <!-- 현재 상태 -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">📊 현재 데이터베이스 상태</h2>
+                <div class="space-y-3">
+                    <button onclick="checkDatabaseStatus()" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-200">
+                        데이터베이스 상태 확인
+                    </button>
+                    <div id="dbStatus" class="mt-4 p-4 bg-gray-50 rounded-lg hidden">
+                        <pre id="dbStatusContent" class="text-sm text-gray-700 whitespace-pre-wrap"></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 카테고리 정리 -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">🗂️ 카테고리 정리</h2>
+                <p class="text-gray-600 mb-4">사용되지 않는 카테고리를 삭제하거나, 음악의 카테고리를 일괄 변경할 수 있습니다.</p>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">기존 카테고리</label>
+                        <input type="text" id="oldCategoryBulk" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="변경할 카테고리명">
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">새 카테고리</label>
+                        <input type="text" id="newCategoryBulk" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="새로운 카테고리명">
+                    </div>
+                    <button onclick="bulkUpdateCategory()" class="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition duration-200">
+                        카테고리 일괄 변경
+                    </button>
+                </div>
+            </div>
+
+            <!-- 빈 카테고리 정리 -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">🧹 사용되지 않는 카테고리 정리</h2>
+                <p class="text-gray-600 mb-4">음악에서 사용되지 않는 카테고리를 자동으로 삭제합니다.</p>
+                <button onclick="cleanupUnusedCategories()" class="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-lg transition duration-200">
+                    사용되지 않는 카테고리 정리
+                </button>
+            </div>
+        </div>
+
+        <!-- 회원 관리 탭 -->
+        <div id="tab-users" class="tab-content">
+            <!-- 검색 -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">회원 검색</h2>
+                <div class="flex gap-4 flex-wrap">
+                    <div class="flex-1 min-w-[200px]">
+                        <input type="text" id="searchUserEmail" placeholder="이메일로 검색..."
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <button onclick="searchUsers()" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-200">
+                            검색
+                        </button>
+                    </div>
+                    <div>
+                        <button onclick="loadAllUsers()" class="px-6 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition duration-200">
+                            전체 회원 보기
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 회원 목록 -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">회원 목록</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead>
+                            <tr class="bg-gray-100 border-b">
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">이메일</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">역할</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">성인 인증</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">일일 포인트</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">지갑 포인트</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">가입일</th>
+                                <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">작업</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userList">
+                            <!-- 회원 목록이 여기에 동적으로 추가됩니다 -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="emptyUserMessage" class="text-center text-gray-500 py-8 hidden">
+                    회원 정보가 없습니다.
+                </div>
+            </div>
+
+            <!-- 성인 인증 요청 목록 -->
+            <div class="bg-white rounded-lg shadow-md p-6 mt-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800">성인 인증 요청 관리</h2>
+                    <button onclick="loadVerificationRequests()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-200">
+                        새로고침
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead>
+                            <tr class="bg-gray-100 border-b">
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">이메일</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">휴대폰 번호</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">요청일시</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">상태</th>
+                                <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">작업</th>
+                            </tr>
+                        </thead>
+                        <tbody id="verificationRequestsList">
+                            <!-- 인증 요청 목록이 여기에 동적으로 추가됩니다 -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="emptyVerificationMessage" class="text-center text-gray-500 py-8 hidden">
+                    대기 중인 성인 인증 요청이 없습니다.
+                </div>
+            </div>
+        </div>
+
+        <!-- 마이그레이션 탭 -->
+        <div id="tab-migration" class="tab-content">
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">🔄 카테고리 데이터 마이그레이션</h2>
+
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                    <h3 class="font-semibold text-yellow-800 mb-2">⚠️ 주의사항</h3>
+                    <ul class="text-sm text-yellow-700 space-y-1">
+                        <li>• 이 기능은 모든 기존 카테고리에 topSection='visual-mode'를 추가합니다.</li>
+                        <li>• 이미 topSection이 있는 카테고리는 건너뜁니다.</li>
+                        <li>• 실행 전 '상태 확인'을 먼저 눌러 현재 상태를 확인하세요.</li>
+                        <li>• 마이그레이션 후 각 카테고리의 topSection을 적절히 수정하세요.</li>
+                    </ul>
+                </div>
+
+                <div class="flex gap-4 mb-6">
+                    <button onclick="checkMigrationStatus()" id="checkMigrationBtn" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-200">
+                        1️⃣ 상태 확인
+                    </button>
+                    <button onclick="runCategoryMigration()" id="migrationBtn" disabled class="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                        2️⃣ 마이그레이션 실행
+                    </button>
+                </div>
+
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <h3 class="font-semibold text-gray-800 mb-2">📊 실행 로그</h3>
+                    <div id="migrationLog" class="font-mono text-xs text-gray-700 max-h-96 overflow-y-auto whitespace-pre-wrap">
+                        로그가 여기에 표시됩니다...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 콘텐츠 편집 모달 -->
+    <div id="editContentModal" class="modal">
+        <div class="bg-white rounded-lg shadow-xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">콘텐츠 편집</h2>
+            <input type="hidden" id="editContentId">
+
+            <!-- 썸네일 미리보기 -->
+            <div class="mb-4">
+                <label class="block text-gray-700 font-semibold mb-2">썸네일</label>
+                <img id="editContentThumbnail" src="" alt="썸네일" class="w-32 h-32 object-cover rounded-lg border">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-gray-700 font-semibold mb-2">제목</label>
+                <input type="text" id="editContentName" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="제목 입력">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-gray-700 font-semibold mb-2">카테고리</label>
+                <select id="editContentCategory" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">카테고리 없음</option>
+                </select>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-gray-700 font-semibold mb-2">
+                    <input type="checkbox" id="editContentRecommended" class="mr-2">
+                    추천 콘텐츠로 표시
+                </label>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-gray-700 font-semibold mb-2">음악 URL</label>
+                <input type="text" id="editContentMusicUrl" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="음악 URL">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-gray-700 font-semibold mb-2">이미지 개수</label>
+                <input type="number" id="editContentImageCount" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="이미지 개수" readonly>
+            </div>
+
+            <div class="flex justify-end space-x-3">
+                <button onclick="closeEditContentModal()" class="px-6 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-200">
+                    취소
+                </button>
+                <button onclick="saveContentEdit()" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-200">
+                    저장
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 카테고리 편집 모달 -->
+    <div id="editModal" class="modal">
+        <div class="bg-white rounded-lg shadow-xl p-8 max-w-md w-full mx-4">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">카테고리 편집</h2>
+            <input type="hidden" id="oldCategoryName">
+            <input type="hidden" id="oldCategoryId">
+            <div class="mb-4">
+                <label class="block text-gray-700 font-semibold mb-2">최상위 섹션</label>
+                <select id="editCategoryTopSection" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="visual-mode">Looks & Lines</option>
+                    <option value="momentary">MOMENTARY</option>
+                    <option value="chronicles">CHRONICLES</option>
+                </select>
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 font-semibold mb-2">카테고리명</label>
+                <input type="text" id="newCategoryName" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="카테고리명 입력">
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 font-semibold mb-2">카테고리 분류</label>
+                <select id="editCategoryClassification" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">미분류</option>
+                    <option value="인물">인물</option>
+                    <option value="패션">패션</option>
+                    <option value="화보">화보</option>
+                    <option value="시네마틱">시네마틱</option>
+                </select>
+            </div>
+            <div class="mb-4">
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" id="editCategoryIsAdult" class="w-5 h-5 text-red-600 border-gray-300 rounded focus:ring-red-500">
+                    <span class="ml-2 text-gray-700 font-semibold">🔞 성인용</span>
+                </label>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button onclick="closeEditModal()" class="px-6 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-200">
+                    취소
+                </button>
+                <button onclick="updateCategory()" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-200">
+                    저장
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentTab = 'categories';
+        let allMusicData = [];
+        let filteredMusicData = [];
+        let allCategories = [];
+        let categoryDetailsMap = {};
+
+        // 페이지 로드 시 관리자 권한 확인 및 데이터 로드
+        document.addEventListener('DOMContentLoaded', async function() {
+            const hasAccess = await checkAdminAccess();
+            if (hasAccess) {
+                loadCategories();
+                loadMusicList();
+                loadContentList();
+            }
+        });
+
+        // 관리자 권한 확인
+        async function checkAdminAccess() {
+            return new Promise((resolve) => {
+                window.firebaseOnAuthStateChanged(window.firebaseAuth, async (user) => {
+                    try {
+                        if (!user) {
+                            console.log('No user logged in');
+                            document.getElementById('access-denied').classList.remove('hidden');
+                            document.getElementById('admin-content').style.display = 'none';
+                            resolve(false);
+                            return;
+                        }
+
+                        // Firestore에서 사용자 정보 가져오기
+                        const userDocRef = window.firebaseDoc(window.firebaseDb, 'users', user.uid);
+                        const userDoc = await window.firebaseGetDoc(userDocRef);
+
+                        if (!userDoc.exists()) {
+                            console.log('User document does not exist');
+                            document.getElementById('access-denied').classList.remove('hidden');
+                            document.getElementById('admin-content').style.display = 'none';
+                            resolve(false);
+                            return;
+                        }
+
+                        const userData = userDoc.data();
+                        console.log('User data:', userData);
+
+                        if (userData.role !== 'admin') {
+                            console.log('User is not admin, role:', userData.role);
+                            document.getElementById('access-denied').classList.remove('hidden');
+                            document.getElementById('admin-content').style.display = 'none';
+                            resolve(false);
+                            return;
+                        }
+
+                        console.log('Admin access granted');
+                        resolve(true);
+                    } catch (error) {
+                        console.error('Error checking admin access:', error);
+                        document.getElementById('access-denied').classList.remove('hidden');
+                        document.getElementById('admin-content').style.display = 'none';
+                        resolve(false);
+                    }
+                });
+            });
+        }
+
+        // 탭 전환
+        function switchTab(tabName) {
+            currentTab = tabName;
+
+            // 탭 버튼 활성화 상태 변경
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // 탭 컨텐츠 표시/숨김
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+
+        // ========== 카테고리 관리 함수들 ==========
+
+        // 새 카테고리 추가
+        async function addNewCategory() {
+            const topSection = document.getElementById('newCategoryTopSection').value.trim();
+            const categoryName = document.getElementById('newCategoryNameInput').value.trim();
+            const classification = document.getElementById('newCategoryClassification').value.trim();
+            const isAdult = document.getElementById('newCategoryIsAdult').checked;
+
+            if (!categoryName) {
+                alert('카테고리명을 입력해주세요.');
+                return;
+            }
+
+            // 중복 확인
+            if (allCategories.includes(categoryName)) {
+                alert('이미 존재하는 카테고리입니다.');
+                return;
+            }
+
+            try {
+                // Firestore에 카테고리 추가
+                const categoryRef = window.firebaseDoc(window.firebaseDb, 'categories', categoryName);
+                await window.firebaseSetDoc(categoryRef, {
+                    name: categoryName,
+                    topSection: topSection || 'visual-mode',
+                    classification: classification || '기타',
+                    description: '',
+                    isAdult: isAdult,
+                    createdAt: new Date().toISOString(),
+                    createdBy: window.firebaseAuth.currentUser?.uid || 'admin'
+                });
+
+                alert(`"${categoryName}" 카테고리가 추가되었습니다.`);
+
+                // 입력 필드 초기화
+                document.getElementById('newCategoryTopSection').value = 'visual-mode';
+                document.getElementById('newCategoryNameInput').value = '';
+                document.getElementById('newCategoryClassification').value = '';
+                document.getElementById('newCategoryIsAdult').checked = false;
+
+                // 추가된 카테고리의 섹션으로 필터 설정
+                currentCategoryFilter = topSection;
+
+                // 카테고리 목록 새로고침 (자동으로 currentCategoryFilter 적용됨)
+                await loadCategories();
+                renderCategoryFilter();
+                renderContentCategoryFilter();
+                notifyMainPage('categoryUpdated');
+            } catch (error) {
+                console.error('Error adding category:', error);
+                alert('카테고리 추가 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // 카테고리 목록 불러오기
+        let allCategoryDetailsData = []; // 전역 변수로 카테고리 상세 정보 저장
+        let currentCategoryFilter = 'all'; // 현재 선택된 topSection 필터
+
+        async function loadCategories() {
+            try {
+                // Firestore에서 categories 컬렉션 조회
+                const categoriesCollection = window.firebaseCollection(window.firebaseDb, 'categories');
+                const querySnapshot = await window.firebaseGetDocs(categoriesCollection);
+
+                const categoryDetails = [];
+                querySnapshot.forEach(doc => {
+                    const data = doc.data();
+                    categoryDetails.push({
+                        id: doc.id,
+                        name: data.name || doc.id,  // data.name 우선, 없으면 doc.id 사용
+                        topSection: data.topSection || 'visual-mode',
+                        classification: data.classification || '기타',
+                        description: data.description || '',
+                        isAdult: data.isAdult || false
+                    });
+                });
+
+                allCategories = categoryDetails.map(cat => cat.name);
+                allCategoryDetailsData = categoryDetails; // 전역 변수에 저장
+                filterCategoriesByTopSection(currentCategoryFilter); // 현재 필터로 렌더링
+                renderCategoryFilter();
+            } catch (error) {
+                console.error('Error loading categories:', error);
+                alert('카테고리 목록을 불러오는 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // topSection별로 카테고리 필터링
+        function filterCategoriesByTopSection(topSection) {
+            currentCategoryFilter = topSection;
+
+            // 버튼 스타일 업데이트
+            document.querySelectorAll('[id^="categoryFilter-"]').forEach(btn => {
+                btn.classList.remove('bg-gray-600', 'text-white');
+                btn.classList.add('bg-gray-300', 'text-gray-700');
+            });
+            const activeBtn = document.getElementById(`categoryFilter-${topSection}`);
+            if (activeBtn) {
+                activeBtn.classList.remove('bg-gray-300', 'text-gray-700');
+                activeBtn.classList.add('bg-gray-600', 'text-white');
+            }
+
+            // 카테고리 필터링
+            let filteredCategories = allCategoryDetailsData;
+            if (topSection !== 'all') {
+                filteredCategories = allCategoryDetailsData.filter(cat => cat.topSection === topSection);
+            }
+
+            renderCategories(filteredCategories);
+        }
+
+        // 분류별 색상 매핑
+        function getClassificationColor(classification) {
+            const colors = {
+                '인물': {
+                    bg: 'bg-blue-100',
+                    border: 'border-blue-400',
+                    text: 'text-blue-800',
+                    badge: 'bg-blue-500',
+                    editBtn: 'bg-blue-500 hover:bg-blue-600',
+                    deleteBtn: 'bg-blue-700 hover:bg-blue-800',
+                    hex: '#3B82F6'
+                },
+                '패션': {
+                    bg: 'bg-pink-100',
+                    border: 'border-pink-400',
+                    text: 'text-pink-800',
+                    badge: 'bg-pink-500',
+                    editBtn: 'bg-pink-500 hover:bg-pink-600',
+                    deleteBtn: 'bg-pink-700 hover:bg-pink-800',
+                    hex: '#EC4899'
+                },
+                '화보': {
+                    bg: 'bg-green-100',
+                    border: 'border-green-400',
+                    text: 'text-green-800',
+                    badge: 'bg-green-500',
+                    editBtn: 'bg-green-500 hover:bg-green-600',
+                    deleteBtn: 'bg-green-700 hover:bg-green-800',
+                    hex: '#10B981'
+                },
+                '시네마틱': {
+                    bg: 'bg-purple-100',
+                    border: 'border-purple-400',
+                    text: 'text-purple-800',
+                    badge: 'bg-purple-500',
+                    editBtn: 'bg-purple-500 hover:bg-purple-600',
+                    deleteBtn: 'bg-purple-700 hover:bg-purple-800',
+                    hex: '#8B5CF6'
+                }
+            };
+            return colors[classification] || {
+                bg: 'bg-gray-100',
+                border: 'border-gray-400',
+                text: 'text-gray-800',
+                badge: 'bg-gray-500',
+                editBtn: 'bg-gray-500 hover:bg-gray-600',
+                deleteBtn: 'bg-gray-700 hover:bg-gray-800',
+                hex: '#6B7280'
+            };
+        }
+
+        // 카테고리 목록 렌더링
+        function renderCategories(categoryDetails) {
+            const categoryList = document.getElementById('categoryList');
+            const emptyMessage = document.getElementById('emptyCategoryMessage');
+
+            if (!categoryDetails || categoryDetails.length === 0) {
+                categoryList.innerHTML = '';
+                emptyMessage.classList.remove('hidden');
+            } else {
+                emptyMessage.classList.add('hidden');
+
+                categoryDetailsMap = {};
+                categoryDetails.forEach(cat => {
+                    categoryDetailsMap[cat.name] = {
+                        topSection: cat.topSection || 'visual-mode',
+                        classification: cat.classification,
+                        isAdult: cat.isAdult || false,
+                        id: cat.id
+                    };
+                });
+
+                categoryList.innerHTML = categoryDetails.map(category => {
+                    const colors = getClassificationColor(category.classification);
+                    const classificationLabel = category.classification || '미분류';
+                    const adultBadge = category.isAdult ? '<span class="px-2 py-1 bg-red-600 text-white text-xs font-bold rounded ml-2">🔞 성인용</span>' : '';
+
+                    // topSection 이름 매핑
+                    const topSectionNames = {
+                        'visual-mode': 'Looks & Lines',
+                        'momentary': 'MOMENTARY',
+                        'chronicles': 'CHRONICLES'
+                    };
+                    const topSectionLabel = topSectionNames[category.topSection] || 'Looks & Lines';
+                    const topSectionBadge = `<span class="px-2 py-1 bg-gray-700 text-white text-xs font-bold rounded ml-2">${topSectionLabel}</span>`;
+
+                    return `
+                        <div class="item flex items-center justify-between p-4 border-2 ${colors.border} ${colors.bg} rounded-lg">
+                            <div class="flex items-center space-x-3">
+                                <span class="text-lg font-medium ${colors.text}">${escapeHtml(category.name)}</span>
+                                ${topSectionBadge}
+                                ${adultBadge}
+                            </div>
+                            <div class="space-x-2">
+                                <button onclick="openEditModal('${escapeHtml(category.id)}', '${escapeHtml(category.name)}', '${escapeHtml(category.topSection || 'visual-mode')}', '${escapeHtml(category.classification || '')}', ${category.isAdult})" class="px-4 py-2 ${colors.editBtn} text-white font-semibold rounded transition duration-200">
+                                    편집
+                                </button>
+                                <button onclick="deleteCategory('${escapeHtml(category.name)}')" class="px-4 py-2 ${colors.deleteBtn} text-white font-semibold rounded transition duration-200">
+                                    삭제
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        // 편집 모달 열기
+        function openEditModal(categoryId, categoryName, topSection, classification, isAdult) {
+            document.getElementById('oldCategoryId').value = categoryId;
+            document.getElementById('oldCategoryName').value = categoryName;
+            document.getElementById('newCategoryName').value = categoryName;
+            document.getElementById('editCategoryTopSection').value = topSection || 'visual-mode';
+            document.getElementById('editCategoryClassification').value = classification || '';
+            document.getElementById('editCategoryIsAdult').checked = isAdult || false;
+
+            document.getElementById('editModal').classList.add('active');
+        }
+
+        // 수정 모달 닫기
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+        }
+
+        // 카테고리 업데이트 (이름 및 분류 변경)
+        async function updateCategory() {
+            const categoryId = document.getElementById('oldCategoryId').value.trim();
+            const oldCategoryName = document.getElementById('oldCategoryName').value.trim();
+            const newCategoryName = document.getElementById('newCategoryName').value.trim();
+            const newTopSection = document.getElementById('editCategoryTopSection').value.trim();
+            const newClassification = document.getElementById('editCategoryClassification').value.trim();
+            const isAdult = document.getElementById('editCategoryIsAdult').checked;
+
+            if (!newCategoryName) {
+                alert('카테고리명을 입력해주세요.');
+                return;
+            }
+
+            try {
+                // 카테고리명이 변경된 경우
+                if (oldCategoryName !== newCategoryName) {
+                    // 해당 카테고리를 사용하는 모든 음악 찾기
+                    const musicCollection = window.firebaseCollection(window.firebaseDb, 'music');
+                    const musicQuery = window.firebaseQuery(musicCollection, window.firebaseWhere('category', '==', oldCategoryName));
+                    const musicSnapshot = await window.firebaseGetDocs(musicQuery);
+
+                    // 음악 문서를 500개씩 나눠서 batch 처리 (Firestore batch 제한)
+                    const docs = [];
+                    musicSnapshot.forEach(doc => docs.push(doc));
+
+                    for (let i = 0; i < docs.length; i += 500) {
+                        const batch = window.firebaseWriteBatch(window.firebaseDb);
+                        const chunk = docs.slice(i, i + 500);
+
+                        chunk.forEach(doc => {
+                            batch.update(doc.ref, { category: newCategoryName });
+                        });
+
+                        await batch.commit();
+                    }
+
+                    // 기존 카테고리 삭제
+                    const oldCategoryRef = window.firebaseDoc(window.firebaseDb, 'categories', categoryId);
+                    await window.firebaseDeleteDoc(oldCategoryRef);
+                }
+
+                // 새 카테고리 정보 저장 (문서 ID 사용)
+                const newCategoryRef = window.firebaseDoc(window.firebaseDb, 'categories', categoryId);
+                await window.firebaseSetDoc(newCategoryRef, {
+                    name: newCategoryName,
+                    topSection: newTopSection || 'visual-mode',
+                    classification: newClassification || '기타',
+                    isAdult: isAdult,
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
+
+                alert('카테고리가 성공적으로 변경되었습니다.');
+                closeEditModal();
+                loadCategories();
+                loadMusicList();
+                notifyMainPage('categoryUpdated');
+            } catch (error) {
+                console.error('Error updating category:', error);
+                alert('카테고리 변경 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // 카테고리 삭제
+        async function deleteCategory(categoryName) {
+            if (!confirm(`"${categoryName}" 카테고리를 삭제하시겠습니까?\n이 카테고리를 사용하는 음악들의 카테고리가 제거됩니다.`)) {
+                return;
+            }
+
+            try {
+                // 해당 카테고리를 사용하는 모든 음악의 카테고리 필드 제거
+                const musicCollection = window.firebaseCollection(window.firebaseDb, 'music');
+                const musicQuery = window.firebaseQuery(musicCollection, window.firebaseWhere('category', '==', categoryName));
+                const musicSnapshot = await window.firebaseGetDocs(musicQuery);
+
+                // 음악 문서를 500개씩 나눠서 batch 처리
+                const docs = [];
+                musicSnapshot.forEach(doc => docs.push(doc));
+
+                for (let i = 0; i < docs.length; i += 500) {
+                    const batch = window.firebaseWriteBatch(window.firebaseDb);
+                    const chunk = docs.slice(i, i + 500);
+
+                    chunk.forEach(doc => {
+                        batch.update(doc.ref, { category: '' });
+                    });
+
+                    await batch.commit();
+                }
+
+                // 카테고리 문서 삭제
+                const categoryRef = window.firebaseDoc(window.firebaseDb, 'categories', categoryName);
+                await window.firebaseDeleteDoc(categoryRef);
+
+                alert('카테고리가 성공적으로 삭제되었습니다.');
+                loadCategories();
+                loadMusicList();
+                notifyMainPage('categoryUpdated');
+            } catch (error) {
+                console.error('Error deleting category:', error);
+                alert('카테고리 삭제 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // ========== 추천 갤러리 관리 함수들 ==========
+
+        // 음악 목록 불러오기
+        async function loadMusicList() {
+            try {
+                // Firestore에서 music 컬렉션 조회
+                const musicCollection = window.firebaseCollection(window.firebaseDb, 'music');
+                const querySnapshot = await window.firebaseGetDocs(musicCollection);
+
+                const musicList = [];
+                querySnapshot.forEach(doc => {
+                    const data = doc.data();
+                    musicList.push({
+                        id: doc.id,
+                        name: data.name || data.title || '제목 없음',
+                        category: data.category || '',
+                        classification: data.classification || '',
+                        recommended: data.recommended || 0,
+                        ...data
+                    });
+                });
+
+                allMusicData = musicList;
+                filteredMusicData = allMusicData;
+                renderMusicList(filteredMusicData);
+                console.log('Music list loaded:', allMusicData.length, 'items');
+            } catch (error) {
+                console.error('Error loading music list:', error);
+                alert('음악 목록을 불러오는 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // 카테고리 필터 렌더링
+        function renderCategoryFilter() {
+            const filterCategory = document.getElementById('filterCategory');
+            const currentValue = filterCategory.value;
+
+            filterCategory.innerHTML = '<option value="">전체</option>';
+            allCategories.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                if (cat === currentValue) {
+                    option.selected = true;
+                }
+                filterCategory.appendChild(option);
+            });
+        }
+
+        // 필터 적용
+        function applyFilter() {
+            const topSectionFilter = document.getElementById('filterTopSection').value;
+            const categoryFilter = document.getElementById('filterCategory').value;
+            const recommendedFilter = document.getElementById('filterRecommended').value;
+
+            filteredMusicData = allMusicData.filter(music => {
+                let match = true;
+
+                // topSection 필터링
+                if (topSectionFilter) {
+                    const categoryDetail = allCategoryDetailsData.find(cat => cat.name === music.category);
+                    const musicTopSection = categoryDetail ? categoryDetail.topSection : 'visual-mode';
+                    if (musicTopSection !== topSectionFilter) {
+                        match = false;
+                    }
+                }
+
+                if (categoryFilter && music.category !== categoryFilter) {
+                    match = false;
+                }
+
+                if (recommendedFilter !== '' && music.recommended != recommendedFilter) {
+                    match = false;
+                }
+
+                return match;
+            });
+
+            renderMusicList(filteredMusicData);
+        }
+
+        // 필터 초기화
+        function resetFilter() {
+            document.getElementById('filterTopSection').value = '';
+            document.getElementById('filterCategory').value = '';
+            document.getElementById('filterRecommended').value = '';
+            applyFilter();
+        }
+
+        // 음악 목록 렌더링
+        function renderMusicList(musicList) {
+            const musicListContainer = document.getElementById('musicList');
+            const emptyMessage = document.getElementById('emptyMusicMessage');
+
+            if (!musicList || musicList.length === 0) {
+                musicListContainer.innerHTML = '';
+                emptyMessage.classList.remove('hidden');
+            } else {
+                emptyMessage.classList.add('hidden');
+
+                musicListContainer.innerHTML = musicList.map(music => {
+                    const isRecommended = music.recommended == 1;
+                    const recommendedBadge = isRecommended ? '<span class="recommended-badge ml-2">⭐ 추천</span>' : '';
+                    const colors = getClassificationColor(music.classification);
+                    const categoryBadge = music.category ? `<span class="category-badge ml-2" style="background-color: ${colors.hex};">${escapeHtml(music.category)}</span>` : '';
+
+                    const buttonColor = isRecommended ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-blue-600 hover:bg-blue-700';
+                    const buttonText = isRecommended ? '추천 해제' : '추천 추가';
+                    const buttonIcon = isRecommended ? '☆' : '⭐';
+
+                    return `
+                        <div class="item flex items-center justify-between p-4 border-2 border-gray-300 rounded-lg bg-white" data-music-id="${music.id}">
+                            <div class="flex items-center space-x-3 flex-1">
+                                <span class="text-lg font-medium text-gray-800">${escapeHtml(music.name)}</span>
+                                ${categoryBadge}
+                                <span class="recommended-status" data-music-id="${music.id}">${recommendedBadge}</span>
+                            </div>
+                            <div class="space-x-2">
+                                <button onclick="toggleRecommended(${music.id}, ${isRecommended ? 1 : 0})"
+                                        class="recommend-btn px-4 py-2 ${buttonColor} text-white font-semibold rounded transition duration-200"
+                                        data-music-id="${music.id}">
+                                    ${buttonIcon} ${buttonText}
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        // 추천 토글
+        async function toggleRecommended(musicId, currentState) {
+            const newState = currentState ? 0 : 1;
+            console.log('toggleRecommended called:', { musicId, currentState, newState });
+
+            // 즉시 UI 업데이트 (버튼과 배지)
+            const button = document.querySelector(`.recommend-btn[data-music-id="${musicId}"]`);
+            const statusSpan = document.querySelector(`.recommended-status[data-music-id="${musicId}"]`);
+
+            if (button) {
+                button.disabled = true; // 중복 클릭 방지
+            }
+
+            try {
+                // Firestore에서 음악 문서 업데이트
+                const musicRef = window.firebaseDoc(window.firebaseDb, 'music', musicId);
+                await window.firebaseUpdateDoc(musicRef, {
+                    recommended: newState,
+                    updatedAt: new Date().toISOString()
+                });
+
+                console.log('toggleRecommended success');
+
+                // 로컬 데이터 업데이트
+                const music = allMusicData.find(m => m.id === musicId);
+                if (music) {
+                    music.recommended = newState;
+                    console.log('Updated music data:', music);
+                }
+
+                // UI 즉시 업데이트
+                if (button) {
+                    const isRecommended = newState == 1;
+                    const buttonColor = isRecommended ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-blue-600 hover:bg-blue-700';
+                    const buttonText = isRecommended ? '추천 해제' : '추천 추가';
+                    const buttonIcon = isRecommended ? '☆' : '⭐';
+
+                    button.className = `recommend-btn px-4 py-2 ${buttonColor} text-white font-semibold rounded transition duration-200`;
+                    button.innerHTML = `${buttonIcon} ${buttonText}`;
+                    button.onclick = function() { toggleRecommended(musicId, isRecommended ? 1 : 0); };
+                    button.disabled = false;
+                }
+
+                if (statusSpan) {
+                    statusSpan.innerHTML = newState == 1 ? '<span class="recommended-badge ml-2">⭐ 추천</span>' : '';
+                }
+
+                // 메인 페이지에 알림
+                notifyMainPage('recommendedUpdated');
+
+            } catch (error) {
+                console.error('Error toggling recommended:', error);
+                alert('추천 상태 변경 중 오류가 발생했습니다: ' + error.message);
+
+                // 에러 시 버튼 복구
+                if (button) {
+                    button.disabled = false;
+                }
+            }
+        }
+
+        // ========== 콘텐츠 관리 함수들 ==========
+
+        let allContentData = [];
+        let filteredContentData = [];
+
+        // 콘텐츠 목록 로드
+        async function loadContentList() {
+            try {
+                const musicCollection = window.firebaseCollection(window.firebaseDb, 'music');
+                const querySnapshot = await window.firebaseGetDocs(musicCollection);
+
+                const contentList = [];
+                querySnapshot.forEach(doc => {
+                    const data = doc.data();
+                    contentList.push({
+                        id: doc.id,
+                        name: data.name || data.title || '제목 없음',
+                        category: data.category || '',
+                        classification: data.classification || '',
+                        recommended: data.recommended || 0,
+                        thumbnailUrl: data.imageUrl || data.thumbnailUrl || data.thumbnail || '',
+                        musicUrl: data.audioUrl || data.musicUrl || data.music || '',
+                        imageCount: data.imageCount || data.images?.length || 0,
+                        createdAt: data.createdAt || data.uploadedAt || '',
+                        ...data
+                    });
+                });
+
+                // 최신순 정렬
+                contentList.sort((a, b) => {
+                    const dateA = new Date(a.createdAt || 0);
+                    const dateB = new Date(b.createdAt || 0);
+                    return dateB - dateA;
+                });
+
+                allContentData = contentList;
+                filteredContentData = contentList;
+                renderContentList(filteredContentData);
+                renderContentCategoryFilter();
+
+                console.log('Content list loaded:', allContentData.length, 'items');
+            } catch (error) {
+                console.error('Error loading content list:', error);
+                alert('콘텐츠 목록을 불러오는 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // 콘텐츠 카테고리 필터 렌더링
+        function renderContentCategoryFilter() {
+            const filterCategory = document.getElementById('filterContentCategory');
+            const currentValue = filterCategory.value;
+
+            filterCategory.innerHTML = '<option value="">전체 카테고리</option>';
+            allCategories.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                if (cat === currentValue) {
+                    option.selected = true;
+                }
+                filterCategory.appendChild(option);
+            });
+        }
+
+        // 콘텐츠 필터 적용
+        function applyContentFilter() {
+            const keyword = document.getElementById('searchContentKeyword').value.trim().toLowerCase();
+            const topSection = document.getElementById('filterContentTopSection').value;
+            const category = document.getElementById('filterContentCategory').value;
+
+            filteredContentData = allContentData.filter(content => {
+                let match = true;
+
+                if (keyword && !content.name.toLowerCase().includes(keyword)) {
+                    match = false;
+                }
+
+                // topSection 필터링
+                if (topSection) {
+                    const categoryDetail = allCategoryDetailsData.find(cat => cat.name === content.category);
+                    const contentTopSection = categoryDetail ? categoryDetail.topSection : 'visual-mode';
+                    if (contentTopSection !== topSection) {
+                        match = false;
+                    }
+                }
+
+                if (category && content.category !== category) {
+                    match = false;
+                }
+
+                return match;
+            });
+
+            renderContentList(filteredContentData);
+        }
+
+        // 콘텐츠 필터 초기화
+        function resetContentFilter() {
+            document.getElementById('searchContentKeyword').value = '';
+            document.getElementById('filterContentTopSection').value = '';
+            document.getElementById('filterContentCategory').value = '';
+            filteredContentData = allContentData;
+            renderContentList(filteredContentData);
+        }
+
+        // 콘텐츠 목록 렌더링
+        function renderContentList(contentList) {
+            const contentListContainer = document.getElementById('contentList');
+            const emptyMessage = document.getElementById('emptyContentMessage');
+
+            if (!contentList || contentList.length === 0) {
+                contentListContainer.innerHTML = '';
+                emptyMessage.classList.remove('hidden');
+            } else {
+                emptyMessage.classList.add('hidden');
+
+                contentListContainer.innerHTML = contentList.map(content => {
+                    const thumbnailUrl = content.thumbnailUrl || 'https://via.placeholder.com/100';
+                    const categoryBadge = content.category ? `<span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">${escapeHtml(content.category)}</span>` : '<span class="text-gray-400 text-xs">없음</span>';
+                    const recommendedBadge = content.recommended ? '<span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">⭐ 추천</span>' : '';
+                    const uploadDate = content.createdAt ? new Date(content.createdAt).toLocaleDateString('ko-KR') : '-';
+
+                    return `
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="px-4 py-3">
+                                <img src="${thumbnailUrl}" alt="썸네일" class="w-16 h-16 object-cover rounded" onerror="this.src='https://via.placeholder.com/100'">
+                            </td>
+                            <td class="px-4 py-3 text-sm font-medium text-gray-800">${escapeHtml(content.name)}</td>
+                            <td class="px-4 py-3 text-sm">${categoryBadge}</td>
+                            <td class="px-4 py-3 text-sm">${recommendedBadge}</td>
+                            <td class="px-4 py-3 text-sm text-gray-600">${uploadDate}</td>
+                            <td class="px-4 py-3 text-center">
+                                <button onclick="openEditContentModal('${content.id}')" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded transition duration-200 mr-2">
+                                    편집
+                                </button>
+                                <button onclick="deleteContent('${content.id}', '${escapeHtml(content.name)}')" class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded transition duration-200">
+                                    삭제
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        }
+
+        // 콘텐츠 편집 모달 열기
+        async function openEditContentModal(contentId) {
+            try {
+                const content = allContentData.find(c => c.id === contentId);
+                if (!content) {
+                    alert('콘텐츠를 찾을 수 없습니다.');
+                    return;
+                }
+
+                document.getElementById('editContentId').value = contentId;
+                document.getElementById('editContentName').value = content.name;
+                document.getElementById('editContentThumbnail').src = content.thumbnailUrl || 'https://via.placeholder.com/100';
+                document.getElementById('editContentMusicUrl').value = content.musicUrl || '';
+                document.getElementById('editContentImageCount').value = content.imageCount || 0;
+                document.getElementById('editContentRecommended').checked = content.recommended ? true : false;
+
+                // 카테고리 선택 옵션 채우기
+                const categorySelect = document.getElementById('editContentCategory');
+                categorySelect.innerHTML = '<option value="">카테고리 없음</option>';
+                allCategories.forEach(cat => {
+                    const option = document.createElement('option');
+                    option.value = cat;
+                    option.textContent = cat;
+                    if (cat === content.category) {
+                        option.selected = true;
+                    }
+                    categorySelect.appendChild(option);
+                });
+
+                document.getElementById('editContentModal').classList.add('active');
+            } catch (error) {
+                console.error('Error opening edit modal:', error);
+                alert('편집 모달을 여는 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // 콘텐츠 편집 모달 닫기
+        function closeEditContentModal() {
+            document.getElementById('editContentModal').classList.remove('active');
+        }
+
+        // 콘텐츠 저장
+        async function saveContentEdit() {
+            const contentId = document.getElementById('editContentId').value;
+            const name = document.getElementById('editContentName').value.trim();
+            const category = document.getElementById('editContentCategory').value;
+            const musicUrl = document.getElementById('editContentMusicUrl').value.trim();
+            const recommended = document.getElementById('editContentRecommended').checked ? 1 : 0;
+
+            if (!name) {
+                alert('제목을 입력해주세요.');
+                return;
+            }
+
+            try {
+                const contentRef = window.firebaseDoc(window.firebaseDb, 'music', contentId);
+                await window.firebaseUpdateDoc(contentRef, {
+                    name: name,
+                    title: name, // 호환성을 위해
+                    category: category,
+                    musicUrl: musicUrl,
+                    music: musicUrl, // 호환성을 위해
+                    recommended: recommended,
+                    updatedAt: new Date().toISOString()
+                });
+
+                alert('콘텐츠가 성공적으로 수정되었습니다.');
+                closeEditContentModal();
+                loadContentList();
+                loadMusicList(); // 추천 갤러리 탭도 새로고침
+            } catch (error) {
+                console.error('Error saving content:', error);
+                alert('콘텐츠 저장 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // 콘텐츠 삭제
+        async function deleteContent(contentId, contentName) {
+            if (!confirm(`"${contentName}" 콘텐츠를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없으며, 모든 이미지와 데이터가 삭제됩니다.`)) {
+                return;
+            }
+
+            try {
+                // Firestore에서 문서 삭제
+                const contentRef = window.firebaseDoc(window.firebaseDb, 'music', contentId);
+                await window.firebaseDeleteDoc(contentRef);
+
+                // TODO: Storage에서 이미지 파일들도 삭제해야 함
+                // 이미지 삭제는 Storage 경로를 알아야 하므로 별도 구현 필요
+
+                alert('콘텐츠가 성공적으로 삭제되었습니다.');
+                loadContentList();
+                loadMusicList();
+            } catch (error) {
+                console.error('Error deleting content:', error);
+                alert('콘텐츠 삭제 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // ========== 데이터 정리 함수들 ==========
+
+        // 데이터베이스 상태 확인
+        async function checkDatabaseStatus() {
+            try {
+                const statusDiv = document.getElementById('dbStatus');
+                const contentDiv = document.getElementById('dbStatusContent');
+                statusDiv.classList.remove('hidden');
+                contentDiv.textContent = '데이터 로딩 중...';
+
+                // 카테고리 수집
+                const categoriesSnapshot = await window.firebaseGetDocs(
+                    window.firebaseCollection(window.firebaseDb, 'categories')
+                );
+                const categories = [];
+                categoriesSnapshot.forEach(doc => {
+                    categories.push({
+                        name: doc.id,
+                        classification: doc.data().classification || '미분류'
+                    });
+                });
+
+                // 음악 수집 및 카테고리 사용 현황 파악
+                const musicSnapshot = await window.firebaseGetDocs(
+                    window.firebaseCollection(window.firebaseDb, 'music')
+                );
+                const categoryUsage = {};
+                let totalMusic = 0;
+                let withoutCategory = 0;
+
+                musicSnapshot.forEach(doc => {
+                    totalMusic++;
+                    const category = doc.data().category;
+                    if (!category) {
+                        withoutCategory++;
+                    } else {
+                        categoryUsage[category] = (categoryUsage[category] || 0) + 1;
+                    }
+                });
+
+                // 결과 출력
+                let output = '=== 데이터베이스 상태 ===\n\n';
+                output += `📁 등록된 카테고리: ${categories.length}개\n`;
+                categories.forEach(cat => {
+                    const count = categoryUsage[cat.name] || 0;
+                    output += `   - ${cat.name} (${cat.classification}): ${count}개 음악\n`;
+                });
+
+                output += `\n🎵 총 음악: ${totalMusic}개\n`;
+                output += `   - 카테고리 없음: ${withoutCategory}개\n\n`;
+
+                output += `📊 음악에서 사용 중인 카테고리:\n`;
+                Object.keys(categoryUsage).sort().forEach(cat => {
+                    const inCategories = categories.find(c => c.name === cat);
+                    const status = inCategories ? '✓' : '⚠️ categories 컬렉션에 없음';
+                    output += `   - ${cat}: ${categoryUsage[cat]}개 ${status}\n`;
+                });
+
+                const unusedCategories = categories.filter(cat => !categoryUsage[cat.name]);
+                if (unusedCategories.length > 0) {
+                    output += `\n🗑️ 사용되지 않는 카테고리: ${unusedCategories.length}개\n`;
+                    unusedCategories.forEach(cat => {
+                        output += `   - ${cat.name}\n`;
+                    });
+                }
+
+                contentDiv.textContent = output;
+            } catch (error) {
+                console.error('Error checking database status:', error);
+                alert('데이터베이스 상태 확인 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // 카테고리 일괄 변경
+        async function bulkUpdateCategory() {
+            const oldCategory = document.getElementById('oldCategoryBulk').value.trim();
+            const newCategory = document.getElementById('newCategoryBulk').value.trim();
+
+            if (!oldCategory || !newCategory) {
+                alert('기존 카테고리와 새 카테고리를 모두 입력해주세요.');
+                return;
+            }
+
+            if (!confirm(`"${oldCategory}" 카테고리를 사용하는 모든 음악을 "${newCategory}"로 변경하시겠습니까?`)) {
+                return;
+            }
+
+            try {
+                // 해당 카테고리를 사용하는 음악 찾기
+                const musicCollection = window.firebaseCollection(window.firebaseDb, 'music');
+                const musicQuery = window.firebaseQuery(musicCollection, window.firebaseWhere('category', '==', oldCategory));
+                const musicSnapshot = await window.firebaseGetDocs(musicQuery);
+
+                if (musicSnapshot.empty) {
+                    alert(`"${oldCategory}" 카테고리를 사용하는 음악이 없습니다.`);
+                    return;
+                }
+
+                const count = musicSnapshot.size;
+                console.log(`Found ${count} music items with category "${oldCategory}"`);
+
+                // 500개씩 나눠서 batch 처리
+                const docs = [];
+                musicSnapshot.forEach(doc => docs.push(doc));
+
+                for (let i = 0; i < docs.length; i += 500) {
+                    const batch = window.firebaseWriteBatch(window.firebaseDb);
+                    const chunk = docs.slice(i, i + 500);
+
+                    chunk.forEach(doc => {
+                        batch.update(doc.ref, { category: newCategory });
+                    });
+
+                    await batch.commit();
+                    console.log(`Updated batch ${Math.floor(i / 500) + 1}`);
+                }
+
+                alert(`${count}개의 음악 카테고리가 "${newCategory}"로 변경되었습니다.`);
+                document.getElementById('oldCategoryBulk').value = '';
+                document.getElementById('newCategoryBulk').value = '';
+                checkDatabaseStatus();
+                loadCategories();
+                loadMusicList();
+            } catch (error) {
+                console.error('Error bulk updating category:', error);
+                alert('카테고리 일괄 변경 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // 사용되지 않는 카테고리 정리
+        async function cleanupUnusedCategories() {
+            if (!confirm('음악에서 사용되지 않는 모든 카테고리를 삭제하시겠습니까?')) {
+                return;
+            }
+
+            try {
+                // 모든 카테고리 가져오기
+                const categoriesSnapshot = await window.firebaseGetDocs(
+                    window.firebaseCollection(window.firebaseDb, 'categories')
+                );
+
+                const categories = [];
+                categoriesSnapshot.forEach(doc => {
+                    categories.push(doc.id);
+                });
+
+                // 각 카테고리별로 사용 여부 확인
+                const unusedCategories = [];
+                for (const category of categories) {
+                    const musicCollection = window.firebaseCollection(window.firebaseDb, 'music');
+                    const musicQuery = window.firebaseQuery(musicCollection, window.firebaseWhere('category', '==', category));
+                    const musicSnapshot = await window.firebaseGetDocs(musicQuery);
+
+                    if (musicSnapshot.empty) {
+                        unusedCategories.push(category);
+                    }
+                }
+
+                if (unusedCategories.length === 0) {
+                    alert('사용되지 않는 카테고리가 없습니다.');
+                    return;
+                }
+
+                // 사용되지 않는 카테고리 삭제
+                for (const category of unusedCategories) {
+                    const categoryRef = window.firebaseDoc(window.firebaseDb, 'categories', category);
+                    await window.firebaseDeleteDoc(categoryRef);
+                    console.log(`Deleted unused category: ${category}`);
+                }
+
+                alert(`${unusedCategories.length}개의 사용되지 않는 카테고리가 삭제되었습니다:\n${unusedCategories.join(', ')}`);
+                checkDatabaseStatus();
+                loadCategories();
+            } catch (error) {
+                console.error('Error cleaning up unused categories:', error);
+                alert('카테고리 정리 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // ========== 공통 함수들 ==========
+
+        // HTML 이스케이프 함수
+        function escapeHtml(text) {
+            if (!text) return '';
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return String(text).replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // 메인 페이지에 업데이트 알림
+        function notifyMainPage(eventType) {
+            localStorage.setItem('adminUpdateEvent', JSON.stringify({
+                type: eventType,
+                timestamp: Date.now()
+            }));
+        }
+
+        // ========== 회원 관리 함수들 ==========
+
+        // 전체 회원 로드
+        async function loadAllUsers() {
+            try {
+                const usersCollection = window.firebaseCollection(window.firebaseDb, 'users');
+                const querySnapshot = await window.firebaseGetDocs(usersCollection);
+
+                const users = [];
+                querySnapshot.forEach(doc => {
+                    users.push({
+                        uid: doc.id,
+                        ...doc.data()
+                    });
+                });
+
+                // 가입일 기준 최신순 정렬
+                users.sort((a, b) => {
+                    const dateA = new Date(a.createdAt || 0);
+                    const dateB = new Date(b.createdAt || 0);
+                    return dateB - dateA;
+                });
+
+                renderUsers(users);
+            } catch (error) {
+                console.error('회원 목록 로드 오류:', error);
+                alert('회원 목록을 불러오는 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 회원 검색
+        async function searchUsers() {
+            const searchEmail = document.getElementById('searchUserEmail').value.trim().toLowerCase();
+
+            if (!searchEmail) {
+                alert('검색할 이메일을 입력하세요.');
+                return;
+            }
+
+            try {
+                const usersCollection = window.firebaseCollection(window.firebaseDb, 'users');
+                const querySnapshot = await window.firebaseGetDocs(usersCollection);
+
+                const users = [];
+                querySnapshot.forEach(doc => {
+                    const userData = doc.data();
+                    if (userData.email && userData.email.toLowerCase().includes(searchEmail)) {
+                        users.push({
+                            uid: doc.id,
+                            ...userData
+                        });
+                    }
+                });
+
+                renderUsers(users);
+
+                if (users.length === 0) {
+                    alert('검색 결과가 없습니다.');
+                }
+            } catch (error) {
+                console.error('회원 검색 오류:', error);
+                alert('회원 검색 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 회원 목록 렌더링
+        function renderUsers(users) {
+            const userList = document.getElementById('userList');
+            const emptyMessage = document.getElementById('emptyUserMessage');
+
+            if (!users || users.length === 0) {
+                userList.innerHTML = '';
+                emptyMessage.classList.remove('hidden');
+                return;
+            }
+
+            emptyMessage.classList.add('hidden');
+
+            userList.innerHTML = users.map(user => {
+                const roleText = user.role === 'admin' ? '관리자' : user.role === 'creator' ? '크리에이터' : '일반 회원';
+                const roleColor = user.role === 'admin' ? 'text-red-600 font-bold' : user.role === 'creator' ? 'text-blue-600' : 'text-gray-600';
+                const createdAt = user.createdAt ? new Date(user.createdAt).toLocaleDateString('ko-KR') : '-';
+                const isAdultVerified = user.isAdultVerified || false;
+                const adultVerifiedText = isAdultVerified ? '<span class="text-green-600 font-semibold">✓ 인증됨</span>' : '<span class="text-gray-500">미인증</span>';
+
+                return `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="px-4 py-3 text-sm">${escapeHtml(user.email)}</td>
+                        <td class="px-4 py-3 text-sm ${roleColor}">${roleText}</td>
+                        <td class="px-4 py-3 text-sm">${adultVerifiedText}</td>
+                        <td class="px-4 py-3 text-sm">${user.dailyPoints || 0}P</td>
+                        <td class="px-4 py-3 text-sm">${user.walletBalance || 0}P</td>
+                        <td class="px-4 py-3 text-sm">${createdAt}</td>
+                        <td class="px-4 py-3 text-center space-x-2">
+                            <button onclick="toggleAdultVerification('${user.uid}', '${escapeHtml(user.email)}', ${!isAdultVerified})"
+                                    class="px-3 py-1 ${isAdultVerified ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-green-600 hover:bg-green-700'} text-white text-sm font-semibold rounded transition duration-200">
+                                ${isAdultVerified ? '인증 취소' : '인증 승인'}
+                            </button>
+                            <button onclick="deleteUser('${user.uid}', '${escapeHtml(user.email)}')"
+                                    class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded transition duration-200">
+                                탈퇴
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // 성인 인증 상태 토글
+        async function toggleAdultVerification(uid, email, newStatus) {
+            const action = newStatus ? '승인' : '취소';
+            if (!confirm(`${email} 회원의 성인 인증을 ${action}하시겠습니까?`)) {
+                return;
+            }
+
+            try {
+                const userRef = window.firebaseDoc(window.firebaseDb, 'users', uid);
+                await window.firebaseUpdateDoc(userRef, {
+                    isAdultVerified: newStatus,
+                    adultVerificationUpdatedAt: new Date().toISOString(),
+                    adultVerificationUpdatedBy: window.firebaseAuth.currentUser?.uid || 'admin'
+                });
+
+                alert(`${email} 회원의 성인 인증이 ${action}되었습니다.`);
+
+                // 현재 표시된 목록 새로고침
+                const searchEmail = document.getElementById('searchUserEmail').value.trim();
+                if (searchEmail) {
+                    searchUsers();
+                } else {
+                    loadAllUsers();
+                }
+            } catch (error) {
+                console.error('성인 인증 상태 변경 오류:', error);
+                alert('성인 인증 상태 변경 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // 회원 탈퇴
+        async function deleteUser(uid, email) {
+            if (!confirm(`정말로 ${email} 회원을 탈퇴시키겠습니까?\n\n이 작업은 되돌릴 수 없으며, 다음 데이터가 삭제됩니다:\n- 회원 정보\n- 좋아요 내역\n- 저장 목록\n- 포인트 거래 내역\n\n⚠️ 주의: Firebase Authentication 계정은 수동으로 삭제해야 합니다.`)) {
+                return;
+            }
+
+            try {
+                // Firestore에서 회원 정보 삭제
+                const userDocRef = window.firebaseDoc(window.firebaseDb, 'users', uid);
+                await window.firebaseDeleteDoc(userDocRef);
+
+                // 좋아요 내역 삭제
+                const likesCollection = window.firebaseCollection(window.firebaseDb, 'likes');
+                const likesQuery = window.firebaseQuery(likesCollection, window.firebaseWhere('userId', '==', uid));
+                const likesSnapshot = await window.firebaseGetDocs(likesQuery);
+                const likeDeletePromises = [];
+                likesSnapshot.forEach(doc => {
+                    likeDeletePromises.push(window.firebaseDeleteDoc(doc.ref));
+                });
+                await Promise.all(likeDeletePromises);
+
+                // 저장 목록 삭제
+                const savedCollection = window.firebaseCollection(window.firebaseDb, 'savedMusic');
+                const savedQuery = window.firebaseQuery(savedCollection, window.firebaseWhere('userId', '==', uid));
+                const savedSnapshot = await window.firebaseGetDocs(savedQuery);
+                const savedDeletePromises = [];
+                savedSnapshot.forEach(doc => {
+                    savedDeletePromises.push(window.firebaseDeleteDoc(doc.ref));
+                });
+                await Promise.all(savedDeletePromises);
+
+                // 포인트 거래 내역 삭제
+                const transactionsCollection = window.firebaseCollection(window.firebaseDb, 'pointTransactions');
+                const transactionsQuery = window.firebaseQuery(transactionsCollection, window.firebaseWhere('userId', '==', uid));
+                const transactionsSnapshot = await window.firebaseGetDocs(transactionsQuery);
+                const transactionDeletePromises = [];
+                transactionsSnapshot.forEach(doc => {
+                    transactionDeletePromises.push(window.firebaseDeleteDoc(doc.ref));
+                });
+                await Promise.all(transactionDeletePromises);
+
+                alert(`${email} 회원이 탈퇴 처리되었습니다.\n\nFirebase Authentication에서 해당 계정을 수동으로 삭제해주세요.`);
+
+                // 회원 목록 새로고침
+                loadAllUsers();
+            } catch (error) {
+                console.error('회원 탈퇴 처리 오류:', error);
+                alert('회원 탈퇴 처리 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // 모달 외부 클릭 시 닫기
+        document.getElementById('editModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeEditModal();
+            }
+        });
+
+        document.getElementById('editContentModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeEditContentModal();
+            }
+        });
+
+        // ======= 성인 인증 요청 관리 =======
+
+        // 성인 인증 요청 목록 로드
+        async function loadVerificationRequests() {
+            try {
+                const requestsCollection = window.firebaseCollection(window.firebaseDb, 'adultVerificationRequests');
+
+                // 인덱스 오류를 피하기 위해 모든 문서를 가져온 후 클라이언트에서 필터링
+                const querySnapshot = await window.firebaseGetDocs(requestsCollection);
+
+                const requests = [];
+                querySnapshot.forEach(doc => {
+                    const data = doc.data();
+                    // pending 상태만 필터링
+                    if (data.status === 'pending') {
+                        requests.push({
+                            id: doc.id,
+                            ...data
+                        });
+                    }
+                });
+
+                // 요청일 기준 최신순 정렬
+                requests.sort((a, b) => {
+                    const dateA = a.requestedAt?.toDate() || new Date(0);
+                    const dateB = b.requestedAt?.toDate() || new Date(0);
+                    return dateB - dateA;
+                });
+
+                renderVerificationRequests(requests);
+            } catch (error) {
+                console.error('인증 요청 목록 로드 오류:', error);
+                console.error('상세 오류:', error.code, error.message);
+
+                // 컬렉션이 없는 경우 빈 목록 표시 (오류 알림 없이)
+                if (error.code === 'permission-denied' || error.message.includes('Missing or insufficient permissions')) {
+                    console.warn('성인 인증 요청 컬렉션 접근 권한 없음 - Firestore 규칙 확인 필요');
+                    renderVerificationRequests([]);
+                } else if (error.code === 'not-found') {
+                    console.info('성인 인증 요청 컬렉션이 아직 없습니다.');
+                    renderVerificationRequests([]);
+                } else {
+                    // 예상치 못한 오류만 알림 표시
+                    alert('인증 요청 목록을 불러오는 중 오류가 발생했습니다.\n콘솔을 확인해주세요.');
+                }
+            }
+        }
+
+        // 인증 요청 목록 렌더링
+        function renderVerificationRequests(requests) {
+            const requestsList = document.getElementById('verificationRequestsList');
+            const emptyMessage = document.getElementById('emptyVerificationMessage');
+
+            if (!requests || requests.length === 0) {
+                requestsList.innerHTML = '';
+                emptyMessage.classList.remove('hidden');
+                return;
+            }
+
+            emptyMessage.classList.add('hidden');
+
+            requestsList.innerHTML = requests.map(request => {
+                const requestedAt = request.requestedAt ? new Date(request.requestedAt.toDate()).toLocaleString('ko-KR') : '-';
+                const statusText = request.status === 'pending' ? '<span class="text-yellow-600 font-semibold">대기중</span>' :
+                                   request.status === 'approved' ? '<span class="text-green-600 font-semibold">승인됨</span>' :
+                                   '<span class="text-red-600 font-semibold">거부됨</span>';
+
+                return `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="px-4 py-3 text-sm">${escapeHtml(request.userEmail)}</td>
+                        <td class="px-4 py-3 text-sm">${request.phoneNumber}</td>
+                        <td class="px-4 py-3 text-sm">${requestedAt}</td>
+                        <td class="px-4 py-3 text-sm">${statusText}</td>
+                        <td class="px-4 py-3 text-center space-x-2">
+                            <button onclick="approveVerificationRequest('${request.id}', '${request.userId}', '${escapeHtml(request.userEmail)}')"
+                                    class="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded transition duration-200">
+                                승인
+                            </button>
+                            <button onclick="rejectVerificationRequest('${request.id}', '${escapeHtml(request.userEmail)}')"
+                                    class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded transition duration-200">
+                                거부
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // 인증 요청 승인
+        async function approveVerificationRequest(requestId, userId, userEmail) {
+            if (!confirm(`${userEmail} 회원의 성인 인증을 승인하시겠습니까?`)) {
+                return;
+            }
+
+            try {
+                // 인증 요청 상태 업데이트
+                const requestRef = window.firebaseDoc(window.firebaseDb, 'adultVerificationRequests', requestId);
+                await window.firebaseUpdateDoc(requestRef, {
+                    status: 'approved',
+                    verifiedAt: new Date().toISOString(),
+                    verifiedBy: window.firebaseAuth.currentUser?.uid || 'admin'
+                });
+
+                // 사용자 정보 업데이트
+                const userRef = window.firebaseDoc(window.firebaseDb, 'users', userId);
+                await window.firebaseUpdateDoc(userRef, {
+                    isAdultVerified: true,
+                    adultVerificationUpdatedAt: new Date().toISOString(),
+                    adultVerificationUpdatedBy: window.firebaseAuth.currentUser?.uid || 'admin'
+                });
+
+                alert(`${userEmail} 회원의 성인 인증이 승인되었습니다.`);
+
+                // 목록 새로고침
+                loadVerificationRequests();
+                loadAllUsers();
+            } catch (error) {
+                console.error('인증 승인 오류:', error);
+                alert('인증 승인 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 인증 요청 거부
+        async function rejectVerificationRequest(requestId, userEmail) {
+            if (!confirm(`${userEmail} 회원의 성인 인증 요청을 거부하시겠습니까?`)) {
+                return;
+            }
+
+            try {
+                // 인증 요청 상태 업데이트
+                const requestRef = window.firebaseDoc(window.firebaseDb, 'adultVerificationRequests', requestId);
+                await window.firebaseUpdateDoc(requestRef, {
+                    status: 'rejected',
+                    verifiedAt: new Date().toISOString(),
+                    verifiedBy: window.firebaseAuth.currentUser?.uid || 'admin'
+                });
+
+                alert(`${userEmail} 회원의 성인 인증 요청이 거부되었습니다.`);
+
+                // 목록 새로고침
+                loadVerificationRequests();
+            } catch (error) {
+                console.error('인증 거부 오류:', error);
+                alert('인증 거부 중 오류가 발생했습니다.');
+            }
+        }
+
+        // Enter 키 이벤트 리스너
+        document.addEventListener('DOMContentLoaded', function() {
+            // 페이지 로드 시 자동으로 인증 요청 목록 로드
+            loadVerificationRequests();
+
+            // 회원 검색 Enter 키
+            const searchInput = document.getElementById('searchUserEmail');
+            if (searchInput) {
+                searchInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        searchUsers();
+                    }
+                });
+            }
+
+            // 카테고리 추가 Enter 키
+            const categoryNameInput = document.getElementById('newCategoryNameInput');
+            if (categoryNameInput) {
+                categoryNameInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        addNewCategory();
+                    }
+                });
+            }
+
+            // 콘텐츠 검색 Enter 키
+            const contentSearchInput = document.getElementById('searchContentKeyword');
+            if (contentSearchInput) {
+                contentSearchInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        applyContentFilter();
+                    }
+                });
+            }
+        });
+
+        // ========== 마이그레이션 함수들 ==========
+
+        function migrationLog(message, type = 'info') {
+            const logDiv = document.getElementById('migrationLog');
+            const timestamp = new Date().toLocaleTimeString();
+            let color = '#374151'; // gray-700
+
+            if (type === 'success') color = '#10b981'; // green-500
+            if (type === 'error') color = '#ef4444'; // red-500
+            if (type === 'warning') color = '#f59e0b'; // amber-500
+
+            logDiv.innerHTML += `<span style="color: ${color}">[${timestamp}] ${message}</span>\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        // 마이그레이션 상태 확인
+        async function checkMigrationStatus() {
+            const btn = document.getElementById('checkMigrationBtn');
+            btn.disabled = true;
+            document.getElementById('migrationLog').innerHTML = '';
+
+            try {
+                migrationLog('=== 카테고리 상태 확인 시작 ===', 'info');
+
+                const categoriesRef = window.firebaseCollection(window.firebaseDb, 'categories');
+                const querySnapshot = await window.firebaseGetDocs(categoriesRef);
+
+                let totalCount = 0;
+                let withTopSection = 0;
+                let withoutTopSection = 0;
+                const categoriesWithoutTopSection = [];
+
+                querySnapshot.forEach((doc) => {
+                    totalCount++;
+                    const data = doc.data();
+
+                    if (data.topSection) {
+                        withTopSection++;
+                        migrationLog(`✓ ${doc.id}: topSection="${data.topSection}"`, 'success');
+                    } else {
+                        withoutTopSection++;
+                        categoriesWithoutTopSection.push(doc.id);
+                        migrationLog(`✗ ${doc.id}: topSection 없음`, 'error');
+                    }
+                });
+
+                migrationLog('\n=== 통계 ===', 'info');
+                migrationLog(`전체 카테고리: ${totalCount}개`, 'info');
+                migrationLog(`topSection 있음: ${withTopSection}개`, 'success');
+                migrationLog(`topSection 없음: ${withoutTopSection}개`, 'error');
+
+                if (withoutTopSection > 0) {
+                    migrationLog('\n마이그레이션이 필요한 카테고리:', 'error');
+                    categoriesWithoutTopSection.forEach(cat => migrationLog(`  - ${cat}`, 'error'));
+                    migrationLog('\n"2️⃣ 마이그레이션 실행" 버튼을 눌러 업데이트하세요.', 'info');
+                    document.getElementById('migrationBtn').disabled = false;
+                } else {
+                    migrationLog('\n모든 카테고리가 정상입니다! 마이그레이션이 필요하지 않습니다.', 'success');
+                    document.getElementById('migrationBtn').disabled = true;
+                }
+
+            } catch (error) {
+                migrationLog('상태 확인 중 오류: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // 마이그레이션 실행
+        async function runCategoryMigration() {
+            if (!confirm('정말로 마이그레이션을 실행하시겠습니까?\n\ntopSection이 없는 모든 카테고리에 topSection="visual-mode"가 추가됩니다.')) {
+                return;
+            }
+
+            const btn = document.getElementById('migrationBtn');
+            const checkBtn = document.getElementById('checkMigrationBtn');
+            btn.disabled = true;
+            checkBtn.disabled = true;
+
+            try {
+                migrationLog('\n=== 마이그레이션 시작 ===', 'info');
+
+                const categoriesRef = window.firebaseCollection(window.firebaseDb, 'categories');
+                const querySnapshot = await window.firebaseGetDocs(categoriesRef);
+
+                let updatedCount = 0;
+                let skippedCount = 0;
+                let errorCount = 0;
+
+                for (const docSnapshot of querySnapshot.docs) {
+                    const data = docSnapshot.data();
+
+                    if (!data.topSection) {
+                        try {
+                            const docRef = window.firebaseDoc(window.firebaseDb, 'categories', docSnapshot.id);
+                            await window.firebaseUpdateDoc(docRef, {
+                                topSection: 'visual-mode'
+                            });
+                            updatedCount++;
+                            migrationLog(`✓ ${docSnapshot.id}: topSection="visual-mode" 추가됨`, 'success');
+                        } catch (error) {
+                            errorCount++;
+                            migrationLog(`✗ ${docSnapshot.id}: 업데이트 실패 - ${error.message}`, 'error');
+                        }
+                    } else {
+                        skippedCount++;
+                        migrationLog(`⊘ ${docSnapshot.id}: 이미 topSection="${data.topSection}" 있음 (건너뜀)`, 'info');
+                    }
+                }
+
+                migrationLog('\n=== 마이그레이션 완료 ===', 'success');
+                migrationLog(`업데이트됨: ${updatedCount}개`, 'success');
+                migrationLog(`건너뜀: ${skippedCount}개`, 'info');
+                if (errorCount > 0) {
+                    migrationLog(`실패: ${errorCount}개`, 'error');
+                }
+
+                migrationLog('\n마이그레이션이 완료되었습니다!', 'success');
+                migrationLog('카테고리 관리 탭에서 각 카테고리의 topSection을 확인하고 필요시 수정하세요.', 'warning');
+
+                // 카테고리 목록 새로고침
+                await loadCategories();
+
+            } catch (error) {
+                migrationLog('마이그레이션 중 오류: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                checkBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

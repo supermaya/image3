@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카테고리 마이그레이션 스크립트</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .info {
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 카테고리 데이터 마이그레이션</h1>
+
+        <div class="warning">
+            <strong>⚠️ 주의사항:</strong>
+            <ul>
+                <li>이 스크립트는 관리자만 실행해야 합니다.</li>
+                <li>모든 기존 카테고리에 topSection='visual-mode'를 추가합니다.</li>
+                <li>이미 topSection이 있는 카테고리는 건너뜁니다.</li>
+                <li>실행 전 '상태 확인'을 먼저 눌러 현재 상태를 확인하세요.</li>
+            </ul>
+        </div>
+
+        <div>
+            <button onclick="checkStatus()" id="checkBtn">1. 상태 확인</button>
+            <button onclick="runMigration()" id="migrateBtn" disabled>2. 마이그레이션 실행</button>
+        </div>
+
+        <div id="log"></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+        import { getFirestore, collection, getDocs, doc, updateDoc, getDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+        // Firebase 설정
+        const firebaseConfig = {
+            apiKey: "AIzaSyAChI2Lr2RgLxIJWg-NCafGhbgo7MHfpLA",
+            authDomain: "pixelplanet-95dd9.firebaseapp.com",
+            projectId: "pixelplanet-95dd9",
+            storageBucket: "pixelplanet-95dd9.firebasestorage.app",
+            messagingSenderId: "895107624648",
+            appId: "1:895107624648:web:f928b2e9156691fab97ffd",
+            measurementId: "G-4JVYXYZPW0"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        window.db = db;
+        window.auth = auth;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+            logDiv.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        // 관리자 권한 확인
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) {
+                log('로그인이 필요합니다. index.html에서 로그인 후 다시 시도하세요.', 'error');
+                document.getElementById('checkBtn').disabled = true;
+                return;
+            }
+
+            try {
+                const userDocRef = doc(db, 'users', user.uid);
+                const userDoc = await getDoc(userDocRef);
+
+                if (!userDoc.exists() || userDoc.data().role !== 'admin') {
+                    log('관리자 권한이 없습니다.', 'error');
+                    document.getElementById('checkBtn').disabled = true;
+                    return;
+                }
+
+                log(`관리자로 로그인됨: ${user.email}`, 'success');
+            } catch (error) {
+                log('권한 확인 중 오류: ' + error.message, 'error');
+            }
+        });
+
+        // 상태 확인 함수
+        window.checkStatus = async function() {
+            const btn = document.getElementById('checkBtn');
+            btn.disabled = true;
+            document.getElementById('log').innerHTML = '';
+
+            try {
+                log('=== 카테고리 상태 확인 시작 ===', 'info');
+
+                const categoriesRef = collection(db, 'categories');
+                const querySnapshot = await getDocs(categoriesRef);
+
+                let totalCount = 0;
+                let withTopSection = 0;
+                let withoutTopSection = 0;
+                const categoriesWithoutTopSection = [];
+
+                querySnapshot.forEach((doc) => {
+                    totalCount++;
+                    const data = doc.data();
+
+                    if (data.topSection) {
+                        withTopSection++;
+                        log(`✓ ${doc.id}: topSection="${data.topSection}"`, 'success');
+                    } else {
+                        withoutTopSection++;
+                        categoriesWithoutTopSection.push(doc.id);
+                        log(`✗ ${doc.id}: topSection 없음`, 'error');
+                    }
+                });
+
+                log('\n=== 통계 ===', 'info');
+                log(`전체 카테고리: ${totalCount}개`, 'info');
+                log(`topSection 있음: ${withTopSection}개`, 'success');
+                log(`topSection 없음: ${withoutTopSection}개`, 'error');
+
+                if (withoutTopSection > 0) {
+                    log('\n마이그레이션이 필요한 카테고리:', 'error');
+                    categoriesWithoutTopSection.forEach(cat => log(`  - ${cat}`, 'error'));
+                    log('\n"2. 마이그레이션 실행" 버튼을 눌러 업데이트하세요.', 'info');
+                    document.getElementById('migrateBtn').disabled = false;
+                } else {
+                    log('\n모든 카테고리가 정상입니다! 마이그레이션이 필요하지 않습니다.', 'success');
+                    document.getElementById('migrateBtn').disabled = true;
+                }
+
+            } catch (error) {
+                log('상태 확인 중 오류: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        };
+
+        // 마이그레이션 실행 함수
+        window.runMigration = async function() {
+            if (!confirm('정말로 마이그레이션을 실행하시겠습니까?\n\ntopSection이 없는 모든 카테고리에 topSection="visual-mode"가 추가됩니다.')) {
+                return;
+            }
+
+            const btn = document.getElementById('migrateBtn');
+            btn.disabled = true;
+            document.getElementById('checkBtn').disabled = true;
+
+            try {
+                log('\n=== 마이그레이션 시작 ===', 'info');
+
+                const categoriesRef = collection(db, 'categories');
+                const querySnapshot = await getDocs(categoriesRef);
+
+                let updatedCount = 0;
+                let skippedCount = 0;
+                let errorCount = 0;
+
+                for (const docSnapshot of querySnapshot.docs) {
+                    const data = docSnapshot.data();
+
+                    if (!data.topSection) {
+                        try {
+                            const docRef = doc(db, 'categories', docSnapshot.id);
+                            await updateDoc(docRef, {
+                                topSection: 'visual-mode'
+                            });
+                            updatedCount++;
+                            log(`✓ ${docSnapshot.id}: topSection="visual-mode" 추가됨`, 'success');
+                        } catch (error) {
+                            errorCount++;
+                            log(`✗ ${docSnapshot.id}: 업데이트 실패 - ${error.message}`, 'error');
+                        }
+                    } else {
+                        skippedCount++;
+                        log(`⊘ ${docSnapshot.id}: 이미 topSection="${data.topSection}" 있음 (건너뜀)`, 'info');
+                    }
+                }
+
+                log('\n=== 마이그레이션 완료 ===', 'success');
+                log(`업데이트됨: ${updatedCount}개`, 'success');
+                log(`건너뜀: ${skippedCount}개`, 'info');
+                if (errorCount > 0) {
+                    log(`실패: ${errorCount}개`, 'error');
+                }
+
+                log('\n마이그레이션이 완료되었습니다!', 'success');
+                log('메인 페이지를 새로고침하여 변경사항을 확인하세요.', 'info');
+
+            } catch (error) {
+                log('마이그레이션 중 오류: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                document.getElementById('checkBtn').disabled = false;
+            }
+        };
+    </script>
+</body>
+</html>

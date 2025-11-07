@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php:*)",
+      "Bash(npm init -y)",
+      "Bash(npm install:*)",
+      "Bash(node:*)",
+      "Bash(dir:*)",
+      "Bash(firebase init functions --project pixelplanet-95dd9)",
+      "Bash(firebase projects:list:*)",
+      "Bash(firebase hosting:sites:list:*)",
+      "Bash(firebase hosting:channel:list:*)",
+      "Bash(findstr:*)",
+      "Bash(firebase deploy:*)",
+      "Bash(set GOOGLE_APPLICATION_CREDENTIALS=)",
+      "Bash(firebase functions:config:get:*)",
+      "Bash(if [ -f \"D:\\98_Project\\Image3\\.env\" ])",
+      "Bash(then cat \"D:\\98_Project\\Image3\\.env\")",
+      "Bash(fi)",
+      "Bash(nul)",
+      "WebFetch(domain:pixelplanet-95dd9.web.app)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

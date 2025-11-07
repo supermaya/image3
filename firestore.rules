@@ -1,0 +1,116 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 사용자 컬렉션
+    match /users/{userId} {
+      // 본인의 데이터 읽기 가능
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      // 본인의 데이터 쓰기 가능 (단, 성인 인증 관련 필드는 관리자만 수정 가능)
+      allow write: if request.auth != null && request.auth.uid == userId &&
+                      (!request.resource.data.keys().hasAny(['isAdultVerified', 'adultVerificationUpdatedAt', 'adultVerificationUpdatedBy']));
+
+      // 관리자는 모든 사용자 데이터 읽기 및 쓰기 가능
+      allow read, write: if request.auth != null &&
+                           exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // 포인트 거래 내역
+    match /pointTransactions/{transactionId} {
+      // 본인의 거래 내역만 읽을 수 있음
+      allow read: if request.auth != null &&
+                  resource.data.userId == request.auth.uid;
+      // 쓰기는 서버 측에서만 (관리자 권한 필요)
+      allow write: if false;
+    }
+
+    // 관리자 권한 체크 함수
+    function isAdmin() {
+      return request.auth != null &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // 크리에이터 또는 관리자 권한 체크 함수
+    function isCreatorOrAdmin() {
+      return request.auth != null &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'creator');
+    }
+
+    // 본인이 작성한 콘텐츠인지 확인 (크리에이터)
+    // createdBy 또는 uploaderId 필드 중 하나라도 일치하면 소유자로 인정
+    function isOwner() {
+      return request.auth != null &&
+             (resource.data.createdBy == request.auth.uid ||
+              resource.data.uploaderId == request.auth.uid);
+    }
+
+    // 소유자 필드가 있는지 확인
+    function hasOwnerField() {
+      return resource.data.keys().hasAny(['createdBy', 'uploaderId']);
+    }
+
+    // 음악 컬렉션
+    match /music/{musicId} {
+      // 누구나 음악 목록 읽기 가능 (공개)
+      allow read: if true;
+
+      // 음악 업로드는 크리에이터 이상 가능
+      allow create: if isCreatorOrAdmin();
+
+      // 관리자는 모든 콘텐츠 수정/삭제 가능
+      // 크리에이터는 본인이 작성한 콘텐츠만 수정/삭제 가능
+      // 소유자 필드가 없는 경우(레거시 데이터) 크리에이터/admin 모두 수정/삭제 가능
+      allow update, delete: if isAdmin() ||
+                              (isCreatorOrAdmin() && (isOwner() || !hasOwnerField()));
+    }
+
+    // 저장된 음악
+    match /savedMusic/{savedMusicId} {
+      // 본인의 저장된 음악만 읽고 쓸 수 있음
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+
+    // 좋아요 목록 (사용자별)
+    match /userLikes/{userId} {
+      // 본인의 좋아요 목록만 읽고 쓸 수 있음
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // 카테고리
+    match /categories/{categoryId} {
+      // 누구나 카테고리 읽기 가능 (공개) - 단, 성인용 카테고리 접근 제어는 애플리케이션 레벨에서 처리
+      allow read: if true;
+
+      // 카테고리 생성/수정/삭제는 크리에이터 이상 가능 (isAdult 필드 포함)
+      allow write: if isCreatorOrAdmin();
+    }
+
+    // 갤러리 접근 로그
+    match /galleryAccessLogs/{logId} {
+      // 본인의 로그만 읽을 수 있음
+      allow read: if request.auth != null &&
+                  resource.data.userId == request.auth.uid;
+      // 쓰기는 서버 측에서만
+      allow write: if false;
+    }
+
+    // 성인 인증 요청
+    match /adultVerificationRequests/{requestId} {
+      // 본인의 인증 요청만 읽고 생성할 수 있음
+      allow read: if request.auth != null &&
+                  resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null &&
+                    request.resource.data.userId == request.auth.uid;
+
+      // 관리자는 모든 인증 요청 읽기 및 상태 업데이트 가능
+      allow read, update: if isAdmin();
+    }
+  }
+}
