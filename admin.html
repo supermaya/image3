@@ -153,6 +153,9 @@
                 <button class="tab-button" onclick="switchTab('users')">
                     회원 관리
                 </button>
+                <button class="tab-button" onclick="switchTab('hero-slides')">
+                    🎬 히어로 슬라이드
+                </button>
                 <button class="tab-button" onclick="switchTab('cleanup')">
                     🔧 데이터 정리
                 </button>
@@ -467,6 +470,64 @@
             </div>
         </div>
 
+        <!-- 히어로 슬라이드 관리 탭 -->
+        <div id="tab-hero-slides" class="tab-content">
+            <!-- 슬라이드 추가 섹션 -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">🎬 새 슬라이드 추가</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">제목</label>
+                        <input type="text" id="newSlideTitle" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="슬라이드 제목 입력">
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">부제목</label>
+                        <input type="text" id="newSlideSubtitle" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="슬라이드 부제목 입력">
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">이미지</label>
+                        <input type="file" id="newSlideImage" accept="image/*" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="text-sm text-gray-500 mt-1">권장 크기: 1920x1080px</p>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">링크 (선택사항)</label>
+                        <input type="text" id="newSlideLink" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="클릭시 이동할 URL 입력">
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">표시 순서</label>
+                        <input type="number" id="newSlideOrder" min="0" value="0" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="flex items-center">
+                        <label class="flex items-center cursor-pointer">
+                            <input type="checkbox" id="newSlideActive" checked class="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                            <span class="ml-2 text-gray-700 font-semibold">활성화</span>
+                        </label>
+                    </div>
+                    <div>
+                        <button onclick="addNewSlide()" class="w-full px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition duration-200">
+                            슬라이드 추가
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 슬라이드 목록 섹션 -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800">슬라이드 목록</h2>
+                    <button onclick="loadHeroSlides()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-200">
+                        새로고침
+                    </button>
+                </div>
+                <div id="heroSlidesList" class="space-y-4">
+                    <!-- 슬라이드 아이템들이 여기에 동적으로 추가됩니다 -->
+                </div>
+                <div id="emptyHeroSlidesMessage" class="text-center text-gray-500 py-8 hidden">
+                    등록된 슬라이드가 없습니다.
+                </div>
+            </div>
+        </div>
+
         <!-- 마이그레이션 탭 -->
         <div id="tab-migration" class="tab-content">
             <div class="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -678,6 +739,11 @@
                 content.classList.remove('active');
             });
             document.getElementById(`tab-${tabName}`).classList.add('active');
+
+            // 히어로 슬라이드 탭 활성화시 목록 로드
+            if (tabName === 'hero-slides') {
+                loadHeroSlides();
+            }
         }
 
         // ========== 카테고리 관리 함수들 ==========
@@ -2171,6 +2237,189 @@
             } finally {
                 btn.disabled = false;
                 checkBtn.disabled = false;
+            }
+        }
+
+        // ========================================
+        // 히어로 슬라이드 관리 함수들
+        // ========================================
+
+        // 히어로 슬라이드 목록 로드
+        async function loadHeroSlides() {
+            try {
+                const slidesQuery = window.firebaseQuery(
+                    window.firebaseCollection(window.firebaseDb, 'heroSlides'),
+                    window.firebaseOrderBy('order', 'asc')
+                );
+                const querySnapshot = await window.firebaseGetDocs(slidesQuery);
+
+                const slidesList = document.getElementById('heroSlidesList');
+                const emptyMessage = document.getElementById('emptyHeroSlidesMessage');
+
+                slidesList.innerHTML = '';
+
+                if (querySnapshot.empty) {
+                    emptyMessage.classList.remove('hidden');
+                    return;
+                }
+
+                emptyMessage.classList.add('hidden');
+
+                querySnapshot.forEach((doc) => {
+                    const slide = { id: doc.id, ...doc.data() };
+                    slidesList.innerHTML += renderHeroSlideItem(slide);
+                });
+            } catch (error) {
+                console.error('슬라이드 로드 오류:', error);
+                alert('슬라이드를 불러오는 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // 슬라이드 아이템 렌더링
+        function renderHeroSlideItem(slide) {
+            const activeStatus = slide.active ?
+                '<span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">활성화</span>' :
+                '<span class="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-semibold">비활성화</span>';
+
+            return `
+                <div class="border border-gray-300 rounded-lg p-4 hover:shadow-md transition">
+                    <div class="flex gap-4">
+                        <div class="w-48 h-32 flex-shrink-0">
+                            <img src="${slide.imageUrl}" alt="${slide.title}" class="w-full h-full object-cover rounded-lg">
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <h3 class="text-lg font-bold text-gray-800">${slide.title}</h3>
+                                    <p class="text-gray-600">${slide.subtitle || ''}</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    ${activeStatus}
+                                    <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold">순서: ${slide.order}</span>
+                                </div>
+                            </div>
+                            ${slide.link ? `<p class="text-sm text-gray-500 mb-2">링크: <a href="${slide.link}" target="_blank" class="text-blue-600 hover:underline">${slide.link}</a></p>` : ''}
+                            <div class="flex gap-2 mt-3">
+                                <button onclick="toggleSlideActive('${slide.id}', ${slide.active})"
+                                        class="px-4 py-2 ${slide.active ? 'bg-gray-600 hover:bg-gray-700' : 'bg-green-600 hover:bg-green-700'} text-white font-semibold rounded-lg transition duration-200">
+                                    ${slide.active ? '비활성화' : '활성화'}
+                                </button>
+                                <button onclick="deleteHeroSlide('${slide.id}', '${slide.imageUrl}')"
+                                        class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition duration-200">
+                                    삭제
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 새 슬라이드 추가
+        async function addNewSlide() {
+            try {
+                const title = document.getElementById('newSlideTitle').value.trim();
+                const subtitle = document.getElementById('newSlideSubtitle').value.trim();
+                const imageFile = document.getElementById('newSlideImage').files[0];
+                const link = document.getElementById('newSlideLink').value.trim();
+                const order = parseInt(document.getElementById('newSlideOrder').value) || 0;
+                const active = document.getElementById('newSlideActive').checked;
+
+                // 유효성 검사
+                if (!title) {
+                    alert('제목을 입력해주세요.');
+                    return;
+                }
+
+                if (!imageFile) {
+                    alert('이미지를 선택해주세요.');
+                    return;
+                }
+
+                // 이미지 업로드
+                const imageRef = window.firebaseStorageRef(window.firebaseStorage, `heroSlides/${Date.now()}_${imageFile.name}`);
+                await window.firebaseUploadBytes(imageRef, imageFile);
+                const imageUrl = await window.firebaseGetDownloadURL(imageRef);
+
+                // Firestore에 저장
+                const slideData = {
+                    title,
+                    subtitle,
+                    imageUrl,
+                    link: link || null,
+                    order,
+                    active,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+
+                await window.firebaseAddDoc(
+                    window.firebaseCollection(window.firebaseDb, 'heroSlides'),
+                    slideData
+                );
+
+                alert('슬라이드가 추가되었습니다!');
+
+                // 입력 필드 초기화
+                document.getElementById('newSlideTitle').value = '';
+                document.getElementById('newSlideSubtitle').value = '';
+                document.getElementById('newSlideImage').value = '';
+                document.getElementById('newSlideLink').value = '';
+                document.getElementById('newSlideOrder').value = '0';
+                document.getElementById('newSlideActive').checked = true;
+
+                // 목록 새로고침
+                await loadHeroSlides();
+            } catch (error) {
+                console.error('슬라이드 추가 오류:', error);
+                alert('슬라이드 추가 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // 슬라이드 활성화/비활성화 토글
+        async function toggleSlideActive(slideId, currentActive) {
+            try {
+                const docRef = window.firebaseDoc(window.firebaseDb, 'heroSlides', slideId);
+                await window.firebaseUpdateDoc(docRef, {
+                    active: !currentActive,
+                    updatedAt: new Date().toISOString()
+                });
+
+                alert('슬라이드 상태가 변경되었습니다!');
+                await loadHeroSlides();
+            } catch (error) {
+                console.error('슬라이드 상태 변경 오류:', error);
+                alert('슬라이드 상태 변경 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // 슬라이드 삭제
+        async function deleteHeroSlide(slideId, imageUrl) {
+            if (!confirm('정말로 이 슬라이드를 삭제하시겠습니까?')) {
+                return;
+            }
+
+            try {
+                // Storage에서 이미지 삭제
+                if (imageUrl) {
+                    try {
+                        const imageRef = window.firebaseStorageRef(window.firebaseStorage, imageUrl);
+                        await window.firebaseDeleteObject(imageRef);
+                    } catch (error) {
+                        console.log('이미지 삭제 실패 (이미 삭제되었을 수 있음):', error);
+                    }
+                }
+
+                // Firestore에서 문서 삭제
+                await window.firebaseDeleteDoc(
+                    window.firebaseDoc(window.firebaseDb, 'heroSlides', slideId)
+                );
+
+                alert('슬라이드가 삭제되었습니다!');
+                await loadHeroSlides();
+            } catch (error) {
+                console.error('슬라이드 삭제 오류:', error);
+                alert('슬라이드 삭제 중 오류가 발생했습니다: ' + error.message);
             }
         }
     </script>
