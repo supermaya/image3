@@ -18,7 +18,13 @@
       "Bash(then cat \"D:\\98_Project\\Image3\\.env\")",
       "Bash(fi)",
       "Bash(nul)",
-      "WebFetch(domain:pixelplanet-95dd9.web.app)"
+      "WebFetch(domain:pixelplanet-95dd9.web.app)",
+      "Bash(firebase functions:artifacts:setpolicy:*)",
+      "Bash(git add:*)",
+      "Bash(git log:*)",
+      "Bash(git commit:*)",
+      "WebFetch(domain:us-central1-pixelplanet-95dd9.cloudfunctions.net)",
+      "Bash(firebase functions:log:*)"
     ],
     "deny": [],
     "ask": []

@@ -33,11 +33,16 @@ router.get('/', verifyToken, async (req, res) => {
     }
 
     const userData = userDoc.data();
+    const dailyPoints = userData.dailyPoints || 0;
+    const walletPoints = userData.walletPoints || 0;
+    const totalPoints = dailyPoints + walletPoints;
 
     res.json({
       success: true,
       data: {
-        totalPoints: userData.totalPoints || 0,
+        dailyPoints,        // 일일 포인트 (자정 만료)
+        walletPoints,       // 지갑 포인트 (영구)
+        totalPoints,        // 총 포인트
         dailyBonusClaimed: userData.dailyBonusClaimed || false,
         dailyBonusLastClaimed: userData.dailyBonusLastClaimed
       }
@@ -81,13 +86,18 @@ router.post('/daily-bonus', verifyToken, async (req, res) => {
       }
 
       const bonusAmount = 60;
-      const newTotalPoints = (userData.totalPoints || 0) + bonusAmount;
+      const currentDailyPoints = userData.dailyPoints || 0;
+      const walletPoints = userData.walletPoints || 0;
+      const newDailyPoints = currentDailyPoints + bonusAmount;
+      const newTotalPoints = newDailyPoints + walletPoints;
 
-      // 사용자 포인트 업데이트
+      // 사용자 포인트 업데이트 (일일 포인트에 추가)
       transaction.set(userRef, {
-        totalPoints: newTotalPoints,
+        dailyPoints: newDailyPoints,
+        walletPoints: walletPoints,
         dailyBonusClaimed: true,
-        dailyBonusLastClaimed: serverTimestamp()
+        dailyBonusLastClaimed: serverTimestamp(),
+        dailyPointsGrantedDate: Timestamp.fromDate(now)
       }, { merge: true });
 
       // 거래 내역 추가
@@ -95,8 +105,9 @@ router.post('/daily-bonus', verifyToken, async (req, res) => {
       transaction.set(doc(transactionRef), {
         userId: req.user.uid,
         type: 'daily_bonus',
+        pointType: 'daily',  // 일일 포인트임을 표시
         amount: bonusAmount,
-        description: '일일 보너스',
+        description: '일일 보너스 (당일 자정까지 유효)',
         createdAt: serverTimestamp()
       });
     });
@@ -104,12 +115,16 @@ router.post('/daily-bonus', verifyToken, async (req, res) => {
     // 업데이트된 사용자 정보 조회
     const updatedUserDoc = await getDoc(userRef);
     const updatedUserData = updatedUserDoc.data();
+    const dailyPoints = updatedUserData.dailyPoints || 0;
+    const walletPoints = updatedUserData.walletPoints || 0;
 
     res.json({
       success: true,
-      message: '일일 보너스 60P가 지급되었습니다.',
+      message: '일일 보너스 60P가 지급되었습니다. (당일 자정까지 유효)',
       data: {
-        totalPoints: updatedUserData.totalPoints,
+        dailyPoints,
+        walletPoints,
+        totalPoints: dailyPoints + walletPoints,
         dailyBonusClaimed: true
       }
     });
@@ -171,7 +186,8 @@ router.post('/use', verifyToken, async (req, res) => {
     }
 
     // 일반 사용자는 포인트 차감
-    let newTotalPoints;
+    let newDailyPoints, newWalletPoints, newTotalPoints;
+    let usedFromDaily = 0, usedFromWallet = 0;
 
     await runTransaction(db, async (transaction) => {
       const userDoc = await transaction.get(userRef);
@@ -181,17 +197,34 @@ router.post('/use', verifyToken, async (req, res) => {
       }
 
       const userData = userDoc.data();
-      const currentPoints = userData.totalPoints || 0;
+      const currentDailyPoints = userData.dailyPoints || 0;
+      const currentWalletPoints = userData.walletPoints || 0;
+      const currentTotalPoints = currentDailyPoints + currentWalletPoints;
 
-      if (currentPoints < amount) {
-        throw new Error(`포인트가 부족합니다. 필요: ${amount}P, 보유: ${currentPoints}P`);
+      if (currentTotalPoints < amount) {
+        throw new Error(`포인트가 부족합니다. 필요: ${amount}P, 보유: ${currentTotalPoints}P`);
       }
 
-      newTotalPoints = currentPoints - amount;
+      // 포인트 차감 우선순위: 일일 포인트 → 지갑 포인트
+      if (currentDailyPoints >= amount) {
+        // 일일 포인트로 모두 차감
+        newDailyPoints = currentDailyPoints - amount;
+        newWalletPoints = currentWalletPoints;
+        usedFromDaily = amount;
+      } else {
+        // 일일 포인트를 모두 사용하고, 부족분은 지갑 포인트에서 차감
+        usedFromDaily = currentDailyPoints;
+        usedFromWallet = amount - currentDailyPoints;
+        newDailyPoints = 0;
+        newWalletPoints = currentWalletPoints - usedFromWallet;
+      }
+
+      newTotalPoints = newDailyPoints + newWalletPoints;
 
       // 사용자 포인트 차감
       transaction.set(userRef, {
-        totalPoints: newTotalPoints
+        dailyPoints: newDailyPoints,
+        walletPoints: newWalletPoints
       }, { merge: true });
 
       // 거래 내역 추가
@@ -200,6 +233,8 @@ router.post('/use', verifyToken, async (req, res) => {
         userId: req.user.uid,
         type: 'usage',
         amount: -amount,
+        usedFromDaily,
+        usedFromWallet,
         description: reason,
         createdAt: serverTimestamp()
       });
@@ -210,6 +245,8 @@ router.post('/use', verifyToken, async (req, res) => {
         transaction.set(doc(logRef), {
           userId: req.user.uid,
           pointsUsed: amount,
+          usedFromDaily,
+          usedFromWallet,
           accessedAt: serverTimestamp(),
           freeAccess: false
         });
@@ -218,10 +255,14 @@ router.post('/use', verifyToken, async (req, res) => {
 
     res.json({
       success: true,
-      message: `${amount}P가 차감되었습니다.`,
+      message: `${amount}P가 차감되었습니다.${usedFromDaily > 0 ? ` (일일: ${usedFromDaily}P` : ''}${usedFromWallet > 0 ? `, 지갑: ${usedFromWallet}P)` : ')'}`,
       data: {
+        dailyPoints: newDailyPoints,
+        walletPoints: newWalletPoints,
         totalPoints: newTotalPoints,
-        usedAmount: amount
+        usedAmount: amount,
+        usedFromDaily,
+        usedFromWallet
       }
     });
   } catch (error) {
@@ -296,12 +337,20 @@ router.post('/add', verifyToken, async (req, res) => {
       });
     }
 
-    const { userId, amount, reason = '관리자 지급' } = req.body;
+    const { userId, amount, reason = '관리자 지급', pointType = 'wallet' } = req.body;
 
     if (!userId || !amount || amount <= 0) {
       return res.status(400).json({
         success: false,
         message: '유효하지 않은 요청입니다.'
+      });
+    }
+
+    // pointType은 'daily' 또는 'wallet'만 허용
+    if (pointType !== 'daily' && pointType !== 'wallet') {
+      return res.status(400).json({
+        success: false,
+        message: 'pointType은 "daily" 또는 "wallet"이어야 합니다.'
       });
     }
 
@@ -315,11 +364,23 @@ router.post('/add', verifyToken, async (req, res) => {
       }
 
       const userData = userDoc.data();
-      const newTotalPoints = (userData.totalPoints || 0) + amount;
+      const currentDailyPoints = userData.dailyPoints || 0;
+      const currentWalletPoints = userData.walletPoints || 0;
+
+      let newDailyPoints = currentDailyPoints;
+      let newWalletPoints = currentWalletPoints;
+
+      // 포인트 타입에 따라 지급
+      if (pointType === 'daily') {
+        newDailyPoints += amount;
+      } else {
+        newWalletPoints += amount;
+      }
 
       // 사용자 포인트 추가
       transaction.set(userRef, {
-        totalPoints: newTotalPoints
+        dailyPoints: newDailyPoints,
+        walletPoints: newWalletPoints
       }, { merge: true });
 
       // 거래 내역 추가
@@ -327,6 +388,7 @@ router.post('/add', verifyToken, async (req, res) => {
       transaction.set(doc(transactionRef), {
         userId: userId,
         type: 'admin_grant',
+        pointType: pointType,
         amount: amount,
         description: reason,
         grantedBy: req.user.uid,
@@ -336,7 +398,7 @@ router.post('/add', verifyToken, async (req, res) => {
 
     res.json({
       success: true,
-      message: `${amount}P가 지급되었습니다.`
+      message: `${pointType === 'daily' ? '일일' : '지갑'} 포인트 ${amount}P가 지급되었습니다.`
     });
   } catch (error) {
     console.error('포인트 추가 오류:', error);

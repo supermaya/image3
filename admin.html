@@ -193,12 +193,6 @@
                             <option value="시네마틱">시네마틱</option>
                         </select>
                     </div>
-                    <div class="flex items-center">
-                        <label class="flex items-center cursor-pointer">
-                            <input type="checkbox" id="newCategoryIsAdult" class="w-5 h-5 text-red-600 border-gray-300 rounded focus:ring-red-500">
-                            <span class="ml-2 text-gray-700 font-semibold">🔞 성인용</span>
-                        </label>
-                    </div>
                     <div>
                         <button onclick="addNewCategory()" class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition duration-200">
                             추가
@@ -423,7 +417,6 @@
                             <tr class="bg-gray-100 border-b">
                                 <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">이메일</th>
                                 <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">역할</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">성인 인증</th>
                                 <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">일일 포인트</th>
                                 <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">지갑 포인트</th>
                                 <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">가입일</th>
@@ -440,34 +433,6 @@
                 </div>
             </div>
 
-            <!-- 성인 인증 요청 목록 -->
-            <div class="bg-white rounded-lg shadow-md p-6 mt-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-semibold text-gray-800">성인 인증 요청 관리</h2>
-                    <button onclick="loadVerificationRequests()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-200">
-                        새로고침
-                    </button>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead>
-                            <tr class="bg-gray-100 border-b">
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">이메일</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">휴대폰 번호</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">요청일시</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">상태</th>
-                                <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">작업</th>
-                            </tr>
-                        </thead>
-                        <tbody id="verificationRequestsList">
-                            <!-- 인증 요청 목록이 여기에 동적으로 추가됩니다 -->
-                        </tbody>
-                    </table>
-                </div>
-                <div id="emptyVerificationMessage" class="text-center text-gray-500 py-8 hidden">
-                    대기 중인 성인 인증 요청이 없습니다.
-                </div>
-            </div>
         </div>
 
         <!-- 히어로 슬라이드 관리 탭 -->
@@ -642,12 +607,6 @@
                     <option value="시네마틱">시네마틱</option>
                 </select>
             </div>
-            <div class="mb-4">
-                <label class="flex items-center cursor-pointer">
-                    <input type="checkbox" id="editCategoryIsAdult" class="w-5 h-5 text-red-600 border-gray-300 rounded focus:ring-red-500">
-                    <span class="ml-2 text-gray-700 font-semibold">🔞 성인용</span>
-                </label>
-            </div>
             <div class="flex justify-end space-x-3">
                 <button onclick="closeEditModal()" class="px-6 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-200">
                     취소
@@ -753,7 +712,6 @@
             const topSection = document.getElementById('newCategoryTopSection').value.trim();
             const categoryName = document.getElementById('newCategoryNameInput').value.trim();
             const classification = document.getElementById('newCategoryClassification').value.trim();
-            const isAdult = document.getElementById('newCategoryIsAdult').checked;
 
             if (!categoryName) {
                 alert('카테고리명을 입력해주세요.');
@@ -774,7 +732,6 @@
                     topSection: topSection || 'visual-mode',
                     classification: classification || '기타',
                     description: '',
-                    isAdult: isAdult,
                     createdAt: new Date().toISOString(),
                     createdBy: window.firebaseAuth.currentUser?.uid || 'admin'
                 });
@@ -785,7 +742,6 @@
                 document.getElementById('newCategoryTopSection').value = 'visual-mode';
                 document.getElementById('newCategoryNameInput').value = '';
                 document.getElementById('newCategoryClassification').value = '';
-                document.getElementById('newCategoryIsAdult').checked = false;
 
                 // 추가된 카테고리의 섹션으로 필터 설정
                 currentCategoryFilter = topSection;
@@ -819,8 +775,7 @@
                         name: data.name || doc.id,  // data.name 우선, 없으면 doc.id 사용
                         topSection: data.topSection || 'visual-mode',
                         classification: data.classification || '기타',
-                        description: data.description || '',
-                        isAdult: data.isAdult || false
+                        description: data.description || ''
                     });
                 });
 
@@ -925,7 +880,6 @@
                     categoryDetailsMap[cat.name] = {
                         topSection: cat.topSection || 'visual-mode',
                         classification: cat.classification,
-                        isAdult: cat.isAdult || false,
                         id: cat.id
                     };
                 });
@@ -933,7 +887,6 @@
                 categoryList.innerHTML = categoryDetails.map(category => {
                     const colors = getClassificationColor(category.classification);
                     const classificationLabel = category.classification || '미분류';
-                    const adultBadge = category.isAdult ? '<span class="px-2 py-1 bg-red-600 text-white text-xs font-bold rounded ml-2">🔞 성인용</span>' : '';
 
                     // topSection 이름 매핑
                     const topSectionNames = {
@@ -949,10 +902,9 @@
                             <div class="flex items-center space-x-3">
                                 <span class="text-lg font-medium ${colors.text}">${escapeHtml(category.name)}</span>
                                 ${topSectionBadge}
-                                ${adultBadge}
                             </div>
                             <div class="space-x-2">
-                                <button onclick="openEditModal('${escapeHtml(category.id)}', '${escapeHtml(category.name)}', '${escapeHtml(category.topSection || 'visual-mode')}', '${escapeHtml(category.classification || '')}', ${category.isAdult})" class="px-4 py-2 ${colors.editBtn} text-white font-semibold rounded transition duration-200">
+                                <button onclick="openEditModal('${escapeHtml(category.id)}', '${escapeHtml(category.name)}', '${escapeHtml(category.topSection || 'visual-mode')}', '${escapeHtml(category.classification || '')}')" class="px-4 py-2 ${colors.editBtn} text-white font-semibold rounded transition duration-200">
                                     편집
                                 </button>
                                 <button onclick="deleteCategory('${escapeHtml(category.name)}')" class="px-4 py-2 ${colors.deleteBtn} text-white font-semibold rounded transition duration-200">
@@ -966,13 +918,12 @@
         }
 
         // 편집 모달 열기
-        function openEditModal(categoryId, categoryName, topSection, classification, isAdult) {
+        function openEditModal(categoryId, categoryName, topSection, classification) {
             document.getElementById('oldCategoryId').value = categoryId;
             document.getElementById('oldCategoryName').value = categoryName;
             document.getElementById('newCategoryName').value = categoryName;
             document.getElementById('editCategoryTopSection').value = topSection || 'visual-mode';
             document.getElementById('editCategoryClassification').value = classification || '';
-            document.getElementById('editCategoryIsAdult').checked = isAdult || false;
 
             document.getElementById('editModal').classList.add('active');
         }
@@ -989,7 +940,6 @@
             const newCategoryName = document.getElementById('newCategoryName').value.trim();
             const newTopSection = document.getElementById('editCategoryTopSection').value.trim();
             const newClassification = document.getElementById('editCategoryClassification').value.trim();
-            const isAdult = document.getElementById('editCategoryIsAdult').checked;
 
             if (!newCategoryName) {
                 alert('카테고리명을 입력해주세요.');
@@ -1030,7 +980,6 @@
                     name: newCategoryName,
                     topSection: newTopSection || 'visual-mode',
                     classification: newClassification || '기타',
-                    isAdult: isAdult,
                     updatedAt: new Date().toISOString()
                 }, { merge: true });
 
@@ -1805,22 +1754,15 @@
                 const roleText = user.role === 'admin' ? '관리자' : user.role === 'creator' ? '크리에이터' : '일반 회원';
                 const roleColor = user.role === 'admin' ? 'text-red-600 font-bold' : user.role === 'creator' ? 'text-blue-600' : 'text-gray-600';
                 const createdAt = user.createdAt ? new Date(user.createdAt).toLocaleDateString('ko-KR') : '-';
-                const isAdultVerified = user.isAdultVerified || false;
-                const adultVerifiedText = isAdultVerified ? '<span class="text-green-600 font-semibold">✓ 인증됨</span>' : '<span class="text-gray-500">미인증</span>';
 
                 return `
                     <tr class="border-b hover:bg-gray-50">
                         <td class="px-4 py-3 text-sm">${escapeHtml(user.email)}</td>
                         <td class="px-4 py-3 text-sm ${roleColor}">${roleText}</td>
-                        <td class="px-4 py-3 text-sm">${adultVerifiedText}</td>
                         <td class="px-4 py-3 text-sm">${user.dailyPoints || 0}P</td>
                         <td class="px-4 py-3 text-sm">${user.walletBalance || 0}P</td>
                         <td class="px-4 py-3 text-sm">${createdAt}</td>
                         <td class="px-4 py-3 text-center space-x-2">
-                            <button onclick="toggleAdultVerification('${user.uid}', '${escapeHtml(user.email)}', ${!isAdultVerified})"
-                                    class="px-3 py-1 ${isAdultVerified ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-green-600 hover:bg-green-700'} text-white text-sm font-semibold rounded transition duration-200">
-                                ${isAdultVerified ? '인증 취소' : '인증 승인'}
-                            </button>
                             <button onclick="deleteUser('${user.uid}', '${escapeHtml(user.email)}')"
                                     class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded transition duration-200">
                                 탈퇴
@@ -1831,35 +1773,6 @@
             }).join('');
         }
 
-        // 성인 인증 상태 토글
-        async function toggleAdultVerification(uid, email, newStatus) {
-            const action = newStatus ? '승인' : '취소';
-            if (!confirm(`${email} 회원의 성인 인증을 ${action}하시겠습니까?`)) {
-                return;
-            }
-
-            try {
-                const userRef = window.firebaseDoc(window.firebaseDb, 'users', uid);
-                await window.firebaseUpdateDoc(userRef, {
-                    isAdultVerified: newStatus,
-                    adultVerificationUpdatedAt: new Date().toISOString(),
-                    adultVerificationUpdatedBy: window.firebaseAuth.currentUser?.uid || 'admin'
-                });
-
-                alert(`${email} 회원의 성인 인증이 ${action}되었습니다.`);
-
-                // 현재 표시된 목록 새로고침
-                const searchEmail = document.getElementById('searchUserEmail').value.trim();
-                if (searchEmail) {
-                    searchUsers();
-                } else {
-                    loadAllUsers();
-                }
-            } catch (error) {
-                console.error('성인 인증 상태 변경 오류:', error);
-                alert('성인 인증 상태 변경 중 오류가 발생했습니다: ' + error.message);
-            }
-        }
 
         // 회원 탈퇴
         async function deleteUser(uid, email) {
@@ -1925,158 +1838,9 @@
             }
         });
 
-        // ======= 성인 인증 요청 관리 =======
-
-        // 성인 인증 요청 목록 로드
-        async function loadVerificationRequests() {
-            try {
-                const requestsCollection = window.firebaseCollection(window.firebaseDb, 'adultVerificationRequests');
-
-                // 인덱스 오류를 피하기 위해 모든 문서를 가져온 후 클라이언트에서 필터링
-                const querySnapshot = await window.firebaseGetDocs(requestsCollection);
-
-                const requests = [];
-                querySnapshot.forEach(doc => {
-                    const data = doc.data();
-                    // pending 상태만 필터링
-                    if (data.status === 'pending') {
-                        requests.push({
-                            id: doc.id,
-                            ...data
-                        });
-                    }
-                });
-
-                // 요청일 기준 최신순 정렬
-                requests.sort((a, b) => {
-                    const dateA = a.requestedAt?.toDate() || new Date(0);
-                    const dateB = b.requestedAt?.toDate() || new Date(0);
-                    return dateB - dateA;
-                });
-
-                renderVerificationRequests(requests);
-            } catch (error) {
-                console.error('인증 요청 목록 로드 오류:', error);
-                console.error('상세 오류:', error.code, error.message);
-
-                // 컬렉션이 없는 경우 빈 목록 표시 (오류 알림 없이)
-                if (error.code === 'permission-denied' || error.message.includes('Missing or insufficient permissions')) {
-                    console.warn('성인 인증 요청 컬렉션 접근 권한 없음 - Firestore 규칙 확인 필요');
-                    renderVerificationRequests([]);
-                } else if (error.code === 'not-found') {
-                    console.info('성인 인증 요청 컬렉션이 아직 없습니다.');
-                    renderVerificationRequests([]);
-                } else {
-                    // 예상치 못한 오류만 알림 표시
-                    alert('인증 요청 목록을 불러오는 중 오류가 발생했습니다.\n콘솔을 확인해주세요.');
-                }
-            }
-        }
-
-        // 인증 요청 목록 렌더링
-        function renderVerificationRequests(requests) {
-            const requestsList = document.getElementById('verificationRequestsList');
-            const emptyMessage = document.getElementById('emptyVerificationMessage');
-
-            if (!requests || requests.length === 0) {
-                requestsList.innerHTML = '';
-                emptyMessage.classList.remove('hidden');
-                return;
-            }
-
-            emptyMessage.classList.add('hidden');
-
-            requestsList.innerHTML = requests.map(request => {
-                const requestedAt = request.requestedAt ? new Date(request.requestedAt.toDate()).toLocaleString('ko-KR') : '-';
-                const statusText = request.status === 'pending' ? '<span class="text-yellow-600 font-semibold">대기중</span>' :
-                                   request.status === 'approved' ? '<span class="text-green-600 font-semibold">승인됨</span>' :
-                                   '<span class="text-red-600 font-semibold">거부됨</span>';
-
-                return `
-                    <tr class="border-b hover:bg-gray-50">
-                        <td class="px-4 py-3 text-sm">${escapeHtml(request.userEmail)}</td>
-                        <td class="px-4 py-3 text-sm">${request.phoneNumber}</td>
-                        <td class="px-4 py-3 text-sm">${requestedAt}</td>
-                        <td class="px-4 py-3 text-sm">${statusText}</td>
-                        <td class="px-4 py-3 text-center space-x-2">
-                            <button onclick="approveVerificationRequest('${request.id}', '${request.userId}', '${escapeHtml(request.userEmail)}')"
-                                    class="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded transition duration-200">
-                                승인
-                            </button>
-                            <button onclick="rejectVerificationRequest('${request.id}', '${escapeHtml(request.userEmail)}')"
-                                    class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded transition duration-200">
-                                거부
-                            </button>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-        }
-
-        // 인증 요청 승인
-        async function approveVerificationRequest(requestId, userId, userEmail) {
-            if (!confirm(`${userEmail} 회원의 성인 인증을 승인하시겠습니까?`)) {
-                return;
-            }
-
-            try {
-                // 인증 요청 상태 업데이트
-                const requestRef = window.firebaseDoc(window.firebaseDb, 'adultVerificationRequests', requestId);
-                await window.firebaseUpdateDoc(requestRef, {
-                    status: 'approved',
-                    verifiedAt: new Date().toISOString(),
-                    verifiedBy: window.firebaseAuth.currentUser?.uid || 'admin'
-                });
-
-                // 사용자 정보 업데이트
-                const userRef = window.firebaseDoc(window.firebaseDb, 'users', userId);
-                await window.firebaseUpdateDoc(userRef, {
-                    isAdultVerified: true,
-                    adultVerificationUpdatedAt: new Date().toISOString(),
-                    adultVerificationUpdatedBy: window.firebaseAuth.currentUser?.uid || 'admin'
-                });
-
-                alert(`${userEmail} 회원의 성인 인증이 승인되었습니다.`);
-
-                // 목록 새로고침
-                loadVerificationRequests();
-                loadAllUsers();
-            } catch (error) {
-                console.error('인증 승인 오류:', error);
-                alert('인증 승인 중 오류가 발생했습니다.');
-            }
-        }
-
-        // 인증 요청 거부
-        async function rejectVerificationRequest(requestId, userEmail) {
-            if (!confirm(`${userEmail} 회원의 성인 인증 요청을 거부하시겠습니까?`)) {
-                return;
-            }
-
-            try {
-                // 인증 요청 상태 업데이트
-                const requestRef = window.firebaseDoc(window.firebaseDb, 'adultVerificationRequests', requestId);
-                await window.firebaseUpdateDoc(requestRef, {
-                    status: 'rejected',
-                    verifiedAt: new Date().toISOString(),
-                    verifiedBy: window.firebaseAuth.currentUser?.uid || 'admin'
-                });
-
-                alert(`${userEmail} 회원의 성인 인증 요청이 거부되었습니다.`);
-
-                // 목록 새로고침
-                loadVerificationRequests();
-            } catch (error) {
-                console.error('인증 거부 오류:', error);
-                alert('인증 거부 중 오류가 발생했습니다.');
-            }
-        }
 
         // Enter 키 이벤트 리스너
         document.addEventListener('DOMContentLoaded', function() {
-            // 페이지 로드 시 자동으로 인증 요청 목록 로드
-            loadVerificationRequests();
-
             // 회원 검색 Enter 키
             const searchInput = document.getElementById('searchUserEmail');
             if (searchInput) {

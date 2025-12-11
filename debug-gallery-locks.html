@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>갤러리 잠금 상태 디버그</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-7xl mx-auto bg-white rounded-lg shadow-lg p-6">
+        <h1 class="text-2xl font-bold mb-6 text-center">갤러리 잠금 상태 디버그</h1>
+
+        <div class="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded">
+            <p class="text-sm text-yellow-800">
+                🔍 <strong>디버깅 도구:</strong> 크리에이터가 자신의 갤러리에 접근할 때 잠금이 해제되는지 확인합니다.<br>
+                - currentUserId와 uploadedBy 값을 비교합니다.<br>
+                - 데이터 타입과 값의 일치 여부를 확인합니다.
+            </p>
+        </div>
+
+        <!-- 로그인 섹션 -->
+        <div id="login-section" class="mb-6">
+            <h2 class="text-xl font-semibold mb-4">1. 크리에이터 로그인</h2>
+            <div class="space-y-3">
+                <input type="email" id="user-email" placeholder="크리에이터 이메일"
+                    class="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="password" id="user-password" placeholder="비밀번호"
+                    class="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="login()"
+                    class="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition">
+                    로그인
+                </button>
+            </div>
+        </div>
+
+        <!-- 사용자 정보 섹션 -->
+        <div id="user-info-section" class="mb-6 hidden">
+            <h2 class="text-xl font-semibold mb-4">2. 현재 로그인 정보</h2>
+            <div class="p-4 bg-blue-50 rounded">
+                <p><strong>이메일:</strong> <span id="current-email"></span></p>
+                <p><strong>UID:</strong> <code id="current-uid" class="bg-white px-2 py-1 rounded"></code></p>
+                <p><strong>Role:</strong> <span id="current-role"></span></p>
+            </div>
+        </div>
+
+        <!-- 갤러리 분석 섹션 -->
+        <div id="gallery-section" class="mb-6 hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">3. 갤러리 잠금 상태 분석</h2>
+                <button onclick="analyzeGalleries()"
+                    class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition">
+                    🔄 다시 분석
+                </button>
+            </div>
+
+            <div class="mb-4 p-3 bg-gray-50 rounded">
+                <div class="grid grid-cols-4 gap-4 text-sm">
+                    <div>
+                        <span class="font-semibold">전체:</span>
+                        <span id="total-galleries">0</span>개
+                    </div>
+                    <div>
+                        <span class="font-semibold text-green-600">내 갤러리 (잠금해제):</span>
+                        <span id="my-unlocked">0</span>개
+                    </div>
+                    <div>
+                        <span class="font-semibold text-red-600">내 갤러리 (잠김):</span>
+                        <span id="my-locked">0</span>개
+                    </div>
+                    <div>
+                        <span class="font-semibold text-gray-600">타인 갤러리:</span>
+                        <span id="others">0</span>개
+                    </div>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-3 py-2 text-left">갤러리 이름</th>
+                            <th class="px-3 py-2 text-left">업로더 이메일</th>
+                            <th class="px-3 py-2 text-left">업로더 UID</th>
+                            <th class="px-3 py-2 text-left">소유권</th>
+                            <th class="px-3 py-2 text-left">UID 비교</th>
+                            <th class="px-3 py-2 text-left">잠금 상태</th>
+                            <th class="px-3 py-2 text-left">문제</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gallery-table-body">
+                        <tr>
+                            <td colspan="7" class="px-4 py-8 text-center text-gray-500">
+                                로딩 중...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 문제 갤러리 상세 -->
+        <div id="issues-section" class="mb-6 hidden">
+            <h2 class="text-xl font-semibold mb-4 text-red-600">⚠️ 문제가 있는 갤러리</h2>
+            <div id="issues-content" class="space-y-3"></div>
+        </div>
+
+        <!-- 결과 메시지 -->
+        <div id="result-message" class="hidden p-4 rounded mb-4"></div>
+
+        <!-- 로그아웃 버튼 -->
+        <button id="logout-btn" onclick="handleLogout()"
+            class="w-full bg-red-500 text-white py-2 rounded hover:bg-red-600 transition hidden">
+            로그아웃
+        </button>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getAuth, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+        import { getFirestore, doc, getDoc, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAChI2Lr2RgLxIJWg-NCafGhbgo7MHfpLA",
+            authDomain: "pixelplanet-95dd9.firebaseapp.com",
+            projectId: "pixelplanet-95dd9",
+            storageBucket: "pixelplanet-95dd9.firebasestorage.app",
+            messagingSenderId: "895107624648",
+            appId: "1:895107624648:web:f928b2e9156691fab97ffd",
+            measurementId: "G-4JVYXYZPW0"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        window.firebaseAuth = auth;
+        window.firebaseDb = db;
+        window.firebaseDoc = doc;
+        window.firebaseGetDoc = getDoc;
+        window.firebaseCollection = collection;
+        window.firebaseGetDocs = getDocs;
+        window.firebaseSignInWithEmailAndPassword = signInWithEmailAndPassword;
+        window.firebaseSignOut = signOut;
+
+        window.currentUser = null;
+        window.currentUserData = null;
+        window.galleries = [];
+    </script>
+
+    <script>
+        function showMessage(message, type = 'success') {
+            const msgDiv = document.getElementById('result-message');
+            msgDiv.className = `p-4 rounded mb-4 ${type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`;
+            msgDiv.textContent = message;
+            msgDiv.classList.remove('hidden');
+            setTimeout(() => msgDiv.classList.add('hidden'), 5000);
+        }
+
+        async function login() {
+            const email = document.getElementById('user-email').value;
+            const password = document.getElementById('user-password').value;
+
+            if (!email || !password) {
+                showMessage('이메일과 비밀번호를 입력하세요.', 'error');
+                return;
+            }
+
+            try {
+                const userCredential = await window.firebaseSignInWithEmailAndPassword(window.firebaseAuth, email, password);
+                window.currentUser = userCredential.user;
+
+                // Firestore에서 사용자 정보 가져오기
+                const userDocRef = window.firebaseDoc(window.firebaseDb, 'users', window.currentUser.uid);
+                const userDoc = await window.firebaseGetDoc(userDocRef);
+                window.currentUserData = userDoc.exists() ? userDoc.data() : {};
+
+                document.getElementById('current-email').textContent = window.currentUser.email;
+                document.getElementById('current-uid').textContent = window.currentUser.uid;
+                document.getElementById('current-role').textContent = window.currentUserData.role || 'user';
+
+                showMessage('로그인 성공!', 'success');
+
+                document.getElementById('login-section').classList.add('hidden');
+                document.getElementById('user-info-section').classList.remove('hidden');
+                document.getElementById('gallery-section').classList.remove('hidden');
+                document.getElementById('logout-btn').classList.remove('hidden');
+
+                analyzeGalleries();
+            } catch (error) {
+                console.error('로그인 실패:', error);
+                showMessage('로그인 실패: ' + error.message, 'error');
+            }
+        }
+
+        async function analyzeGalleries() {
+            if (!window.currentUser) return;
+
+            try {
+                const musicCollection = window.firebaseCollection(window.firebaseDb, 'music');
+                const querySnapshot = await window.firebaseGetDocs(musicCollection);
+
+                window.galleries = [];
+                querySnapshot.forEach(doc => {
+                    const data = doc.data();
+                    window.galleries.push({
+                        id: doc.id,
+                        name: data.name || data.title || '이름 없음',
+                        uploadedBy: data.uploadedBy || null,
+                        uploadedByEmail: data.uploadedByEmail || null,
+                        createdBy: data.createdBy || null
+                    });
+                });
+
+                const currentUid = window.currentUser.uid;
+
+                let myUnlocked = 0;
+                let myLocked = 0;
+                let others = 0;
+                const issues = [];
+
+                window.galleries.forEach(gallery => {
+                    // 소유권 체크
+                    const isOwn = gallery.uploadedBy === currentUid || gallery.createdBy === currentUid;
+
+                    if (isOwn) {
+                        myUnlocked++;
+                    } else {
+                        // UID가 다른 경우
+                        if (gallery.uploadedByEmail === window.currentUser.email) {
+                            // 이메일은 같은데 UID가 다름 - 문제!
+                            myLocked++;
+                            issues.push({
+                                gallery: gallery,
+                                issue: 'UID 불일치',
+                                detail: `이메일은 같지만(${gallery.uploadedByEmail}) UID가 다릅니다.`
+                            });
+                        } else {
+                            others++;
+                        }
+                    }
+                });
+
+                // 통계 업데이트
+                document.getElementById('total-galleries').textContent = window.galleries.length;
+                document.getElementById('my-unlocked').textContent = myUnlocked;
+                document.getElementById('my-locked').textContent = myLocked;
+                document.getElementById('others').textContent = others;
+
+                // 테이블 렌더링
+                renderTable(currentUid);
+
+                // 문제 섹션 렌더링
+                if (issues.length > 0) {
+                    renderIssues(issues);
+                    document.getElementById('issues-section').classList.remove('hidden');
+                } else {
+                    document.getElementById('issues-section').classList.add('hidden');
+                }
+
+                showMessage(`${window.galleries.length}개 갤러리 분석 완료`, 'success');
+            } catch (error) {
+                console.error('분석 실패:', error);
+                showMessage('분석 실패: ' + error.message, 'error');
+            }
+        }
+
+        function renderTable(currentUid) {
+            const tbody = document.getElementById('gallery-table-body');
+            if (window.galleries.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">갤러리가 없습니다.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = window.galleries.map(gallery => {
+                const isOwnByUploadedBy = gallery.uploadedBy === currentUid;
+                const isOwnByCreatedBy = gallery.createdBy === currentUid;
+                const isOwn = isOwnByUploadedBy || isOwnByCreatedBy;
+
+                const ownershipText = isOwn ? '✓ 내 갤러리' : '타인';
+                const ownershipClass = isOwn ? 'text-green-600 font-bold' : 'text-gray-600';
+
+                // UID 비교 상세
+                let uidCompare = '';
+                if (gallery.uploadedBy) {
+                    const match = gallery.uploadedBy === currentUid;
+                    uidCompare = match ?
+                        '<span class="text-green-600">✓ 일치</span>' :
+                        '<span class="text-red-600">✗ 불일치</span>';
+                } else {
+                    uidCompare = '<span class="text-gray-400">-</span>';
+                }
+
+                // 잠금 상태 (내 갤러리면 해제되어야 함)
+                const lockStatus = isOwn ?
+                    '<span class="text-green-600">🔓 해제</span>' :
+                    '<span class="text-gray-600">🔒 잠금</span>';
+
+                // 문제 여부
+                const emailMatch = gallery.uploadedByEmail === window.currentUser.email;
+                const problem = (!isOwn && emailMatch) ?
+                    '<span class="text-red-600 font-bold">⚠️ UID 문제</span>' :
+                    '-';
+
+                return `
+                    <tr class="border-t hover:bg-gray-50">
+                        <td class="px-3 py-2">${gallery.name}</td>
+                        <td class="px-3 py-2 text-xs">${gallery.uploadedByEmail || '-'}</td>
+                        <td class="px-3 py-2 font-mono text-xs">
+                            ${gallery.uploadedBy ? gallery.uploadedBy.substring(0, 10) + '...' : '-'}
+                        </td>
+                        <td class="px-3 py-2 ${ownershipClass}">${ownershipText}</td>
+                        <td class="px-3 py-2">${uidCompare}</td>
+                        <td class="px-3 py-2">${lockStatus}</td>
+                        <td class="px-3 py-2">${problem}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderIssues(issues) {
+            const content = document.getElementById('issues-content');
+            content.innerHTML = issues.map(item => `
+                <div class="p-4 bg-red-50 border border-red-200 rounded">
+                    <h3 class="font-bold mb-2">📁 ${item.gallery.name}</h3>
+                    <p class="text-sm mb-1"><strong>문제:</strong> ${item.issue}</p>
+                    <p class="text-sm mb-2">${item.detail}</p>
+                    <div class="text-xs font-mono bg-white p-2 rounded">
+                        <p>현재 로그인 UID: ${window.currentUser.uid}</p>
+                        <p>갤러리 uploadedBy: ${item.gallery.uploadedBy || 'null'}</p>
+                        <p>갤러리 이메일: ${item.gallery.uploadedByEmail || 'null'}</p>
+                    </div>
+                    <div class="mt-2">
+                        <button onclick="fixGalleryUid('${item.gallery.id}')"
+                            class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">
+                            UID 수정하기
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function fixGalleryUid(galleryId) {
+            if (!confirm('이 갤러리의 uploadedBy를 현재 로그인한 사용자의 UID로 수정하시겠습니까?')) {
+                return;
+            }
+
+            try {
+                const { updateDoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+                const galleryRef = window.firebaseDoc(window.firebaseDb, 'music', galleryId);
+
+                await updateDoc(galleryRef, {
+                    uploadedBy: window.currentUser.uid
+                });
+
+                showMessage('UID가 수정되었습니다!', 'success');
+                analyzeGalleries();
+            } catch (error) {
+                console.error('수정 실패:', error);
+                showMessage('수정 실패: ' + error.message, 'error');
+            }
+        }
+
+        async function handleLogout() {
+            try {
+                await window.firebaseSignOut(window.firebaseAuth);
+                location.reload();
+            } catch (error) {
+                console.error('로그아웃 실패:', error);
+            }
+        }
+    </script>
+</body>
+</html>

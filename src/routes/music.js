@@ -6,6 +6,7 @@ import {
   getDoc,
   getDocs,
   setDoc,
+  updateDoc,
   deleteDoc,
   query,
   where,
@@ -29,34 +30,11 @@ router.get('/', verifyToken, async (req, res) => {
       orderDirection = 'desc'
     } = req.query;
 
-    // 현재 사용자의 성인 인증 상태 확인
-    const userRef = doc(db, 'users', req.user.uid);
-    const userDoc = await getDoc(userRef);
-    const isAdultVerified = userDoc.exists() ? userDoc.data().isAdultVerified || false : false;
-
-    // 모든 카테고리 정보 조회 (성인 카테고리 판별용)
-    const categoriesSnapshot = await getDocs(collection(db, 'categories'));
-    const adultCategories = new Set();
-    categoriesSnapshot.forEach((catDoc) => {
-      const catData = catDoc.data();
-      if (catData.isAdult === true) {
-        adultCategories.add(catData.name);
-      }
-    });
-
     const musicRef = collection(db, 'music');
     let q = query(musicRef);
 
     // 필터 적용
     if (category) {
-      // 성인용 카테고리인데 인증이 안된 경우 접근 차단
-      if (adultCategories.has(category) && !isAdultVerified) {
-        return res.status(403).json({
-          success: false,
-          message: '성인 인증이 필요한 카테고리입니다.',
-          requireAdultVerification: true
-        });
-      }
       q = query(q, where('category', '==', category));
     }
 
@@ -72,12 +50,6 @@ router.get('/', verifyToken, async (req, res) => {
 
     querySnapshot.forEach((doc) => {
       const data = doc.data();
-      const musicCategory = data.category;
-
-      // 성인용 카테고리의 음악이고 사용자가 성인 인증이 안된 경우 제외
-      if (adultCategories.has(musicCategory) && !isAdultVerified) {
-        return; // 이 음악은 건너뛰기
-      }
 
       musicList.push({
         id: doc.id,
@@ -101,8 +73,7 @@ router.get('/', verifyToken, async (req, res) => {
       success: true,
       data: {
         music: musicList,
-        count: musicList.length,
-        isAdultVerified: isAdultVerified
+        count: musicList.length
       }
     });
   } catch (error) {
@@ -128,44 +99,6 @@ router.get('/:id', verifyToken, async (req, res) => {
     }
 
     const data = musicDoc.data();
-    const musicCategory = data.category;
-
-    // 현재 사용자의 성인 인증 상태 확인
-    const userRef = doc(db, 'users', req.user.uid);
-    const userDoc = await getDoc(userRef);
-    const isAdultVerified = userDoc.exists() ? userDoc.data().isAdultVerified || false : false;
-
-    // 카테고리가 성인용인지 확인
-    if (musicCategory) {
-      const categoryRef = doc(db, 'categories', musicCategory);
-      const categoryDoc = await getDoc(categoryRef);
-
-      if (categoryDoc.exists()) {
-        const categoryData = categoryDoc.data();
-        if (categoryData.isAdult === true && !isAdultVerified) {
-          return res.status(403).json({
-            success: false,
-            message: '성인 인증이 필요한 컨텐츠입니다.',
-            requireAdultVerification: true
-          });
-        }
-      } else {
-        // 카테고리 이름으로 다시 검색 (이전 방식 호환)
-        const categoriesSnapshot = await getDocs(
-          query(collection(db, 'categories'), where('name', '==', musicCategory))
-        );
-        if (!categoriesSnapshot.empty) {
-          const categoryData = categoriesSnapshot.docs[0].data();
-          if (categoryData.isAdult === true && !isAdultVerified) {
-            return res.status(403).json({
-              success: false,
-              message: '성인 인증이 필요한 컨텐츠입니다.',
-              requireAdultVerification: true
-            });
-          }
-        }
-      }
-    }
 
     res.json({
       success: true,
@@ -463,19 +396,10 @@ router.get('/categories/list', verifyToken, async (req, res) => {
     const categoriesRef = collection(db, 'categories');
     const querySnapshot = await getDocs(categoriesRef);
 
-    // 현재 사용자의 성인 인증 상태 확인
-    const userDoc = await getDoc(doc(db, 'users', req.user.uid));
-    const isAdultVerified = userDoc.exists() ? userDoc.data().isAdultVerified || false : false;
-
     const categories = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
       const isAdult = data.isAdult || false;
-
-      // 성인용 카테고리는 성인 인증된 사용자만 볼 수 있음
-      if (isAdult && !isAdultVerified) {
-        return; // 성인 인증 안된 사용자는 성인 카테고리 제외
-      }
 
       categories.push({
         id: doc.id,
@@ -493,8 +417,7 @@ router.get('/categories/list', verifyToken, async (req, res) => {
       success: true,
       data: {
         categories,
-        count: categories.length,
-        isAdultVerified: isAdultVerified
+        count: categories.length
       }
     });
   } catch (error) {
