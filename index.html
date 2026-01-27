@@ -3420,10 +3420,7 @@
                                 imageSrc: img.imageSrc,
                                 order: img.order || idx,
                                 name: img.name, // 이미지 제목
-                                top: img.top, // 상의
-                                bottom: img.bottom, // 하의
-                                shoes: img.shoes, // 신발
-                                accessories: img.accessories, // 장신구
+                                description: img.description, // 이미지 설명
                                 isLiked: 0,
                                 likeCount: randomLikes,
                                 defaultLikes: randomLikes,
@@ -6532,23 +6529,14 @@
                 const currentImage = currentGalleryInfo.images[currentImageIndex];
                 console.log('🖼️ 현재 이미지 정보:', currentImage);
                 console.log('🖼️ 이미지 인덱스:', currentImageIndex);
-                if (currentImage && (currentImage.name || currentImage.top || currentImage.bottom || currentImage.shoes || currentImage.accessories)) {
+                if (currentImage && (currentImage.name || currentImage.description)) {
                     // 엑셀 파일에서 가져온 이미지 정보가 있으면 표시 (계속 유지)
                     let message = '';
                     if (currentImage.name) {
                         message += currentImage.name;
                     }
-                    if (currentImage.top) {
-                        message += (message ? '\n' : '') + '상의: ' + currentImage.top;
-                    }
-                    if (currentImage.bottom) {
-                        message += (message ? '\n' : '') + '하의: ' + currentImage.bottom;
-                    }
-                    if (currentImage.shoes) {
-                        message += (message ? '\n' : '') + '신발: ' + currentImage.shoes;
-                    }
-                    if (currentImage.accessories) {
-                        message += (message ? '\n' : '') + '장신구: ' + currentImage.accessories;
+                    if (currentImage.description) {
+                        message += (message ? '\n' : '') + currentImage.description;
                     }
                     showGalleryMessage(message, null); // duration을 null로 설정하여 계속 유지
                     isShowingImageInfo = true;
@@ -7121,7 +7109,7 @@
                         <label for="excelFile">이미지 정보 엑셀 파일 (선택사항):</label>
                         <input type="file" id="excelFile" name="excelFile" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel">
                         <small style="display: block; margin-top: -10px; margin-bottom: 15px; color: #666; font-size: 12px;">
-                            각 이미지의 패션 정보를 담은 엑셀 파일을 업로드할 수 있습니다. (형식: 이미지번호, 제목, 상의, 하의, 신발, 장신구)
+                            각 이미지의 정보를 담은 엑셀 파일을 업로드할 수 있습니다. (형식: 이미지번호, 제목, 설명)
                         </small>
                         <label for="musicTopSection">최상위 섹션</label>
                         <select id="musicTopSection" name="musicTopSection" required onchange="updateCategoryOptionsByTopSection()">
@@ -7195,7 +7183,7 @@
                         <label>이미지 정보 엑셀 파일 (선택사항):</label>
                         <input type="file" id="editExcelFile" name="editExcelFile" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel">
                         <small style="display: block; margin-top: -10px; margin-bottom: 15px; color: #666; font-size: 12px;">
-                            각 이미지의 패션 정보를 담은 엑셀 파일을 업로드할 수 있습니다. (형식: 이미지번호, 제목, 상의, 하의, 신발, 장신구)
+                            각 이미지의 정보를 담은 엑셀 파일을 업로드할 수 있습니다. (형식: 이미지번호, 제목, 설명)
                         </small>
                         <button type="submit">수정</button>
                     </form>
@@ -8013,7 +8001,7 @@
                         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
                         // 헤더를 제외한 데이터 파싱
-                        // 컬럼 구조: 이미지번호 / 제목 / 상의 / 하의 / 신발 / 장신구
+                        // 컬럼 구조: 이미지번호 / 제목 / 설명
                         const imageMetadata = {};
                         console.log('📊 엑셀 전체 데이터:', jsonData);
                         for (let i = 1; i < jsonData.length; i++) {
@@ -8023,10 +8011,7 @@
                                 const imageIndex = parseInt(row[0]) - 1; // 엑셀에서는 1부터 시작, 배열은 0부터
                                 imageMetadata[imageIndex] = {
                                     name: row[1] || '', // 제목
-                                    top: row[2] || '', // 상의
-                                    bottom: row[3] || '', // 하의
-                                    shoes: row[4] || '', // 신발
-                                    accessories: row[5] || '' // 장신구
+                                    description: row[2] || '' // 설명
                                 };
                                 console.log(`📊 파싱 결과 [${imageIndex}]:`, imageMetadata[imageIndex]);
                             }
@@ -8145,10 +8130,7 @@
                         // 엑셀 파일에서 파싱한 메타데이터가 있으면 추가
                         if (imageMetadata[index]) {
                             imageData.name = imageMetadata[index].name;
-                            imageData.top = imageMetadata[index].top;
-                            imageData.bottom = imageMetadata[index].bottom;
-                            imageData.shoes = imageMetadata[index].shoes;
-                            imageData.accessories = imageMetadata[index].accessories;
+                            imageData.description = imageMetadata[index].description;
                         }
                         return imageData;
                     }),
@@ -8287,10 +8269,7 @@
                         const updatedImage = { ...img };
                         if (imageMetadata[index]) {
                             updatedImage.name = imageMetadata[index].name;
-                            updatedImage.top = imageMetadata[index].top;
-                            updatedImage.bottom = imageMetadata[index].bottom;
-                            updatedImage.shoes = imageMetadata[index].shoes;
-                            updatedImage.accessories = imageMetadata[index].accessories;
+                            updatedImage.description = imageMetadata[index].description;
                         }
                         return updatedImage;
                     });
@@ -8338,10 +8317,7 @@
                             const updatedImage = { ...img };
                             if (imageMetadata[index]) {
                                 updatedImage.name = imageMetadata[index].name;
-                                updatedImage.top = imageMetadata[index].top;
-                                updatedImage.bottom = imageMetadata[index].bottom;
-                                updatedImage.shoes = imageMetadata[index].shoes;
-                                updatedImage.accessories = imageMetadata[index].accessories;
+                                updatedImage.description = imageMetadata[index].description;
                             }
                             return updatedImage;
                         });
