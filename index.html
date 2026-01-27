@@ -6067,10 +6067,12 @@
             }
 
             // 이미지에 ID가 없으면 생성
+            console.log('📷 받은 images 배열:', images);
             const imagesWithIds = images.map((img, idx) => ({
                 ...img,
                 id: img.id || `${musicId}_${idx}`
             }));
+            console.log('📷 처리된 imagesWithIds 배열:', imagesWithIds);
 
             // title이 전달되지 않았으면 currentMusic에서 가져오기
             const finalTitle = title || (currentMusic ? (currentMusic.name || currentMusic.title) : null);
