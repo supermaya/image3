@@ -6388,18 +6388,23 @@
                                 clearInterval(currentImageInterval);
                                 currentImageInterval = null;
                             }
-                            // 이미지 정보 표시
+                            // 이미지 정보 표시 (계속 유지)
                             showGalleryNameMessage();
                         } else {
                             // 이미지 정보가 이미 표시된 경우 (두 번째 터치)
-                            // 다음 이미지로 전환
-                            items[currentImageIndex].classList.remove('active');
-                            currentImageIndex = (currentImageIndex + 1) % items.length;
-                            items[currentImageIndex].classList.add('active');
-                            updateImageOrderDisplay(); // 순서 표시 업데이트
+                            // 1. 먼저 메시지를 애니메이션으로 제거
+                            hideGalleryMessage(() => {
+                                // 2. 메시지 제거 애니메이션이 끝난 후 이미지 전환
+                                items[currentImageIndex].classList.remove('active');
+                                currentImageIndex = (currentImageIndex + 1) % items.length;
+                                items[currentImageIndex].classList.add('active');
+                                updateImageOrderDisplay(); // 순서 표시 업데이트
 
-                            // 새 이미지 정보 표시
-                            showGalleryNameMessage();
+                                // 3. 새 이미지 정보 표시 (약간의 딜레이 후)
+                                setTimeout(() => {
+                                    showGalleryNameMessage();
+                                }, 100);
+                            });
                         }
                     };
                 }
@@ -6435,6 +6440,28 @@
         }
 
         // 갤러리 메시지 표시 함수
+        // 갤러리 메시지 숨기기 함수 (애니메이션 포함)
+        function hideGalleryMessage(callback) {
+            const galleryWrapper = document.getElementById('gallery-wrapper');
+            if (!galleryWrapper) {
+                if (callback) callback();
+                return;
+            }
+
+            const existingMessage = galleryWrapper.querySelector('.gallery-message');
+            if (existingMessage) {
+                existingMessage.classList.remove('show');
+                setTimeout(() => {
+                    if (existingMessage.parentNode) {
+                        existingMessage.parentNode.removeChild(existingMessage);
+                    }
+                    if (callback) callback();
+                }, 300); // 애니메이션 시간
+            } else {
+                if (callback) callback();
+            }
+        }
+
         function showGalleryMessage(message, duration = 1000) {
             const galleryWrapper = document.getElementById('gallery-wrapper');
             if (!galleryWrapper) return;
