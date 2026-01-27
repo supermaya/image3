@@ -6072,17 +6072,21 @@
                 id: img.id || `${musicId}_${idx}`
             }));
 
+            // title이 전달되지 않았으면 currentMusic에서 가져오기
+            const finalTitle = title || (currentMusic ? (currentMusic.name || currentMusic.title) : null);
+            const finalCreator = creator || (currentMusic ? currentMusic.creator_name : null);
+
             // 현재 갤러리 정보 저장
             currentGalleryInfo = {
                 musicId: musicId,
                 audioSrc: audioSrc,
                 images: imagesWithIds,
-                title: title,
-                creator: creator
+                title: finalTitle,
+                creator: finalCreator
             };
 
             // 갤러리명 저장 (전체 이미지 수 포함)
-            currentGalleryName = `${title || '갤러리'} (${imagesWithIds.length})`;
+            currentGalleryName = `${finalTitle || '갤러리'} (${imagesWithIds.length})`;
 
             // 갤러리 컨테이너 초기화
             imageGallery.innerHTML = '';
