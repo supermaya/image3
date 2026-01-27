@@ -3417,6 +3417,8 @@
                                 id: img.id || `${doc.id}_${idx}`, // Firestore에 저장된 ID 우선 사용
                                 imageSrc: img.imageSrc,
                                 order: img.order || idx,
+                                name: img.name, // 이미지 이름 (엑셀에서 가져온 메타데이터)
+                                description: img.description, // 이미지 설명 (엑셀에서 가져온 메타데이터)
                                 isLiked: 0,
                                 likeCount: randomLikes,
                                 defaultLikes: randomLikes,
