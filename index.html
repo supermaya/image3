@@ -2314,6 +2314,7 @@
         let isMobilePortraitMode = false; // 모바일 세로모드 상태 추적
         let currentGalleryName = ''; // 현재 갤러리명 저장
         let isShowingImageInfo = false; // 이미지 정보 표시 상태 추적
+        let galleryClickState = 0; // 갤러리 클릭 상태: 0=정보없음, 1=정보표시, 2=Hold Image, 3=Auto Mode
 
         // 모바일 감지 및 제어 함수
         function checkMobileOrientation() {
@@ -6380,31 +6381,44 @@
                         const items = document.querySelectorAll('#image-gallery .gallery-item');
                         if (items.length <= 1) return;
 
-                        // 이미지 정보가 표시되지 않은 경우 (첫 번째 터치)
-                        if (!isShowingImageInfo) {
-                            // 자동 전환 중지
-                            isAutoTransitioning = false;
-                            if (currentImageInterval) {
-                                clearInterval(currentImageInterval);
-                                currentImageInterval = null;
-                            }
-                            // 이미지 정보 표시 (계속 유지)
-                            showGalleryNameMessage();
-                        } else {
-                            // 이미지 정보가 이미 표시된 경우 (두 번째 터치)
-                            // 1. 먼저 메시지를 애니메이션으로 제거
-                            hideGalleryMessage(() => {
-                                // 2. 메시지 제거 애니메이션이 끝난 후 이미지 전환
+                        // galleryClickState에 따라 동작 분기
+                        if (galleryClickState === 0) {
+                            // 상태 0: 정보 미표시 → 아무 동작 안함 (패널 클릭으로만 정보 표시)
+                            return;
+                        } else if (galleryClickState === 1) {
+                            // 상태 1: 정보 표시 중 → "Hold Image" 표시 후 정보 사라짐
+                            showGalleryMessage('Hold Image', 1500);
+                            galleryClickState = 2;
+                        } else if (galleryClickState === 2) {
+                            // 상태 2: Hold Image 표시됨 → "Auto Mode 3Sec" 표시 후 다음 이미지로 전환 및 자동 전환 재개
+                            showGalleryMessage('Auto Mode 3Sec', 1500);
+
+                            // 다음 이미지로 전환
+                            setTimeout(() => {
                                 items[currentImageIndex].classList.remove('active');
                                 currentImageIndex = (currentImageIndex + 1) % items.length;
                                 items[currentImageIndex].classList.add('active');
-                                updateImageOrderDisplay(); // 순서 표시 업데이트
+                                updateImageOrderDisplay();
 
-                                // 3. 새 이미지 정보 표시 (약간의 딜레이 후)
-                                setTimeout(() => {
-                                    showGalleryNameMessage();
-                                }, 100);
-                            });
+                                // 자동 전환 재개
+                                isAutoTransitioning = true;
+                                if (currentImageInterval) {
+                                    clearInterval(currentImageInterval);
+                                }
+                                currentImageInterval = setInterval(() => {
+                                    if (isAutoTransitioning) {
+                                        const items = document.querySelectorAll('#image-gallery .gallery-item');
+                                        items[currentImageIndex].classList.remove('active');
+                                        currentImageIndex = (currentImageIndex + 1) % items.length;
+                                        items[currentImageIndex].classList.add('active');
+                                        updateImageOrderDisplay();
+                                    }
+                                }, currentAutoplayTiming);
+
+                                // 상태 초기화
+                                galleryClickState = 0;
+                                isShowingImageInfo = false;
+                            }, 1500);
                         }
                     };
                 }
@@ -6436,6 +6450,21 @@
                     console.log('모바일 가로모드 - 컨트롤 버튼 강제 활성화');
                 }
             }
+
+            // 패널에서 갤러리를 선택하면 자동으로 이미지 정보 표시 (자동 전환 중지)
+            setTimeout(() => {
+                // 자동 전환 중지
+                isAutoTransitioning = false;
+                if (currentImageInterval) {
+                    clearInterval(currentImageInterval);
+                    currentImageInterval = null;
+                }
+
+                // 이미지 정보 표시
+                showGalleryNameMessage();
+                galleryClickState = 1; // 상태를 1로 설정 (정보 표시 중)
+                isShowingImageInfo = true;
+            }, 300); // displayGallery 초기화가 완료된 후 실행
             } // displayGallery 함수 끝
         }
 
