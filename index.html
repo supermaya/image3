@@ -6368,6 +6368,20 @@
                         const items = document.querySelectorAll('#image-gallery .gallery-item');
                         if (items.length <= 1) return;
 
+                        // 현재 이미지 정보 확인
+                        let hasImageInfo = false;
+                        if (currentGalleryInfo && currentGalleryInfo.images && currentGalleryInfo.images.length > 0) {
+                            const currentImage = currentGalleryInfo.images[currentImageIndex];
+                            hasImageInfo = currentImage && (currentImage.name || currentImage.description);
+                        }
+
+                        // 엑셀 파일이 없는 경우 토글 동작
+                        if (!hasImageInfo) {
+                            toggleImageAutoTransition();
+                            return;
+                        }
+
+                        // 엑셀 파일이 있는 경우 기존 동작
                         // galleryClickState에 따라 동작 분기
                         if (galleryClickState === 0) {
                             // 상태 0: 자동 전환 중 → 자동 전환 중지하고 이미지 정보 표시
