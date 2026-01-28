@@ -2314,7 +2314,7 @@
         let isMobilePortraitMode = false; // 모바일 세로모드 상태 추적
         let currentGalleryName = ''; // 현재 갤러리명 저장
         let isShowingImageInfo = false; // 이미지 정보 표시 상태 추적
-        let galleryClickState = 0; // 갤러리 클릭 상태: 0=자동전환중, 1=정보표시중
+        let galleryClickState = 0; // 갤러리 클릭 상태: 0=자동전환중, 1=정보표시중 (토글)
 
         // 모바일 감지 및 제어 함수
         function checkMobileOrientation() {
@@ -6382,14 +6382,27 @@
                             galleryClickState = 1; // 상태를 1로 변경
                             isShowingImageInfo = true;
                         } else if (galleryClickState === 1) {
-                            // 상태 1: 정보 표시 중 → 다음 이미지로 즉시 전환
-                            items[currentImageIndex].classList.remove('active');
-                            currentImageIndex = (currentImageIndex + 1) % items.length;
-                            items[currentImageIndex].classList.add('active');
-                            updateImageOrderDisplay();
+                            // 상태 1: 정보 표시 중 → 정보 숨김 + 자동 전환 재개
+                            hideGalleryMessage(() => {
+                                // 자동 전환 재개
+                                isAutoTransitioning = true;
+                                if (currentImageInterval) {
+                                    clearInterval(currentImageInterval);
+                                }
+                                currentImageInterval = setInterval(() => {
+                                    if (isAutoTransitioning) {
+                                        const items = document.querySelectorAll('#image-gallery .gallery-item');
+                                        items[currentImageIndex].classList.remove('active');
+                                        currentImageIndex = (currentImageIndex + 1) % items.length;
+                                        items[currentImageIndex].classList.add('active');
+                                        updateImageOrderDisplay();
+                                    }
+                                }, currentAutoplayTiming);
 
-                            // 새 이미지 정보 표시
-                            showGalleryNameMessage();
+                                // 상태를 0으로 변경
+                                galleryClickState = 0;
+                                isShowingImageInfo = false;
+                            });
                         }
                     };
                 }
