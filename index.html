@@ -6100,11 +6100,6 @@
             // 갤러리 컨테이너 초기화
             imageGallery.innerHTML = '';
 
-            // 갤러리 변경 시 갤러리명 표시
-            setTimeout(() => {
-                showGalleryNameMessage();
-            }, 300);
-
             if (images.length === 0) {
                 placeholder.textContent = '이 음악에는 이미지가 없습니다.';
                 galleryWrapper.style.display = 'none';
