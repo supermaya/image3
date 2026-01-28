@@ -2314,7 +2314,7 @@
         let isMobilePortraitMode = false; // 모바일 세로모드 상태 추적
         let currentGalleryName = ''; // 현재 갤러리명 저장
         let isShowingImageInfo = false; // 이미지 정보 표시 상태 추적
-        let galleryClickState = 0; // 갤러리 클릭 상태: 0=정보없음, 1=정보표시, 2=Hold Image, 3=Auto Mode
+        let galleryClickState = 0; // 갤러리 클릭 상태: 0=정보없음, 1=정보표시 중
 
         // 모바일 감지 및 제어 함수
         function checkMobileOrientation() {
@@ -6383,39 +6383,15 @@
                             // 상태 0: 정보 미표시 → 아무 동작 안함 (패널 클릭으로만 정보 표시)
                             return;
                         } else if (galleryClickState === 1) {
-                            // 상태 1: 정보 표시 중 → "Hold Image" 표시 후 정보 사라짐
-                            showGalleryMessage('Hold Image', 1500);
-                            galleryClickState = 2;
-                        } else if (galleryClickState === 2) {
-                            // 상태 2: Hold Image 표시됨 → "Auto Mode 3Sec" 표시 후 다음 이미지로 전환 및 자동 전환 재개
-                            showGalleryMessage('Auto Mode 3Sec', 1500);
-
+                            // 상태 1: 정보 표시 중 → 다음 이미지로 즉시 전환
                             // 다음 이미지로 전환
-                            setTimeout(() => {
-                                items[currentImageIndex].classList.remove('active');
-                                currentImageIndex = (currentImageIndex + 1) % items.length;
-                                items[currentImageIndex].classList.add('active');
-                                updateImageOrderDisplay();
+                            items[currentImageIndex].classList.remove('active');
+                            currentImageIndex = (currentImageIndex + 1) % items.length;
+                            items[currentImageIndex].classList.add('active');
+                            updateImageOrderDisplay();
 
-                                // 자동 전환 재개
-                                isAutoTransitioning = true;
-                                if (currentImageInterval) {
-                                    clearInterval(currentImageInterval);
-                                }
-                                currentImageInterval = setInterval(() => {
-                                    if (isAutoTransitioning) {
-                                        const items = document.querySelectorAll('#image-gallery .gallery-item');
-                                        items[currentImageIndex].classList.remove('active');
-                                        currentImageIndex = (currentImageIndex + 1) % items.length;
-                                        items[currentImageIndex].classList.add('active');
-                                        updateImageOrderDisplay();
-                                    }
-                                }, currentAutoplayTiming);
-
-                                // 상태 초기화
-                                galleryClickState = 0;
-                                isShowingImageInfo = false;
-                            }, 1500);
+                            // 새 이미지 정보 표시
+                            showGalleryNameMessage();
                         }
                     };
                 }
