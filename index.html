@@ -6143,12 +6143,6 @@
                     imageElement.style.justifyContent = 'center';
                 });
 
-                // 이미지 클릭 이벤트 추가
-                imageElement.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    toggleImageAutoTransition();
-                });
-
                 galleryItem.appendChild(imageElement);
 
                 if ((userRole === 'creator' || userRole === 'admin') && !isShowingLiked) {
@@ -6536,22 +6530,13 @@
                 let holdMessage = 'Hold Image';
                 if (currentGalleryInfo && currentGalleryInfo.images && currentGalleryInfo.images.length > 0) {
                     const currentImage = currentGalleryInfo.images[currentImageIndex];
-                    if (currentImage && (currentImage.name || currentImage.top || currentImage.bottom || currentImage.shoes || currentImage.accessories)) {
+                    if (currentImage && (currentImage.name || currentImage.description)) {
                         let imageInfo = '';
                         if (currentImage.name) {
                             imageInfo += currentImage.name;
                         }
-                        if (currentImage.top) {
-                            imageInfo += (imageInfo ? '\n' : '') + '상의: ' + currentImage.top;
-                        }
-                        if (currentImage.bottom) {
-                            imageInfo += (imageInfo ? '\n' : '') + '하의: ' + currentImage.bottom;
-                        }
-                        if (currentImage.shoes) {
-                            imageInfo += (imageInfo ? '\n' : '') + '신발: ' + currentImage.shoes;
-                        }
-                        if (currentImage.accessories) {
-                            imageInfo += (imageInfo ? '\n' : '') + '장신구: ' + currentImage.accessories;
+                        if (currentImage.description) {
+                            imageInfo += (imageInfo ? '\n' : '') + currentImage.description;
                         }
                         holdMessage = `${imageInfo}\nHold Image`;
                     } else if (currentGalleryName) {
