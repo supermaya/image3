@@ -6041,6 +6041,12 @@
             const imageGallery = document.getElementById('image-gallery');
             const placeholder = document.getElementById('gallery-placeholder');
 
+            // 이전 갤러리의 메시지 제거
+            const existingMessage = galleryWrapper.querySelector('.gallery-message');
+            if (existingMessage) {
+                existingMessage.remove();
+            }
+
             // 우선순위: 1. 갤러리별 설정 > 2. Portrait 카테고리 > 3. 사용자 설정 > 4. 기본값 3초
             // (외부에서 이미 찾은 currentMusic 사용)
             if (currentMusic && currentMusic.autoplayTiming) {
@@ -6608,6 +6614,15 @@
 
             // 이미지 정보 표시 상태 초기화
             isShowingImageInfo = false;
+
+            // 갤러리 클릭 상태 초기화
+            galleryClickState = 0;
+
+            // 갤러리 메시지 제거
+            const existingMessage = galleryWrapper.querySelector('.gallery-message');
+            if (existingMessage) {
+                existingMessage.remove();
+            }
 
             // 모든 환경에서 컨트롤 버튼 제거
             const mobileControls = document.getElementById('mobile-controls');
