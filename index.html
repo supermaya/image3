@@ -3288,19 +3288,25 @@
             currentAutoplayTiming = nextSeconds * 1000;
             timerButton.setAttribute('data-seconds', nextSeconds);
 
-            // 현재 자동 전환 중이라면 재시작
-            if (isAutoTransitioning && currentImageInterval) {
-                clearInterval(currentImageInterval);
-                currentImageInterval = setInterval(() => {
-                    const items = document.querySelectorAll('#image-gallery .gallery-item');
-                    if (items.length > 1 && isAutoTransitioning) {
-                        items[currentImageIndex].classList.remove('active');
-                        currentImageIndex = (currentImageIndex + 1) % items.length;
-                        items[currentImageIndex].classList.add('active');
-                        updateImageOrderDisplay();
-                    }
-                }, currentAutoplayTiming);
+            // 자동 전환이 중지된 상태라면 활성화
+            if (!isAutoTransitioning) {
+                isAutoTransitioning = true;
+                galleryClickState = 0; // 자동 전환 상태로 변경
             }
+
+            // 인터벌 재시작 (중지 상태에서도 시작)
+            if (currentImageInterval) {
+                clearInterval(currentImageInterval);
+            }
+            currentImageInterval = setInterval(() => {
+                const items = document.querySelectorAll('#image-gallery .gallery-item');
+                if (items.length > 1 && isAutoTransitioning) {
+                    items[currentImageIndex].classList.remove('active');
+                    currentImageIndex = (currentImageIndex + 1) % items.length;
+                    items[currentImageIndex].classList.add('active');
+                    updateImageOrderDisplay();
+                }
+            }, currentAutoplayTiming);
 
             // 메시지 표시
             showGalleryMessage(`Slide Speed: ${nextSeconds} sec`);
