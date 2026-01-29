@@ -6375,35 +6375,56 @@
                             hasImageInfo = currentImage && (currentImage.name || currentImage.description);
                         }
 
-                        // 엑셀 파일이 없는 경우 토글 동작
-                        if (!hasImageInfo) {
-                            toggleImageAutoTransition();
-                            return;
-                        }
-
-                        // 엑셀 파일이 있는 경우 기존 동작
-                        // galleryClickState에 따라 동작 분기
-                        if (galleryClickState === 0) {
-                            // 상태 0: 자동 전환 중 → 자동 전환 중지하고 이미지 정보 표시
+                        // 모든 갤러리에서 토글 동작
+                        if (isAutoTransitioning) {
+                            // 자동 전환 중지
                             isAutoTransitioning = false;
                             if (currentImageInterval) {
                                 clearInterval(currentImageInterval);
                                 currentImageInterval = null;
                             }
 
-                            // 이미지 정보 표시
-                            showGalleryNameMessage();
-                            galleryClickState = 1; // 상태를 1로 변경
-                            isShowingImageInfo = true;
-                        } else if (galleryClickState === 1) {
-                            // 상태 1: 정보 표시 중 → 다음 이미지로 즉시 전환
-                            items[currentImageIndex].classList.remove('active');
-                            currentImageIndex = (currentImageIndex + 1) % items.length;
-                            items[currentImageIndex].classList.add('active');
-                            updateImageOrderDisplay();
-
-                            // 새 이미지 정보 표시
-                            showGalleryNameMessage();
+                            // 엑셀 파일이 있으면 제목/설명, 없으면 Hold Image 메시지
+                            if (hasImageInfo) {
+                                // 제목과 설명 표시 (스타일 적용)
+                                if (currentGalleryInfo && currentGalleryInfo.images && currentGalleryInfo.images.length > 0) {
+                                    const currentImage = currentGalleryInfo.images[currentImageIndex];
+                                    if (currentImage && (currentImage.name || currentImage.description)) {
+                                        let message = '';
+                                        if (currentImage.name) {
+                                            message += `<div style="font-size: 1em; font-weight: bold; color: rgba(255, 255, 255, 1); margin-bottom: 8px;">${currentImage.name}</div>`;
+                                        }
+                                        if (currentImage.description) {
+                                            message += `<div style="font-size: 0.9em; color: rgba(255, 255, 255, 0.7); line-height: 1.4;">${currentImage.description}</div>`;
+                                        }
+                                        showGalleryMessage(message, null);
+                                        isShowingImageInfo = true;
+                                    }
+                                }
+                            } else {
+                                // Hold Image 메시지
+                                let holdMessage = 'Hold Image';
+                                if (currentGalleryName) {
+                                    holdMessage = `${currentGalleryName}\nHold Image`;
+                                }
+                                showGalleryMessage(holdMessage);
+                            }
+                            galleryClickState = 1;
+                        } else {
+                            // 자동 전환 재시작
+                            isAutoTransitioning = true;
+                            currentImageInterval = setInterval(() => {
+                                const galleryItems = document.querySelectorAll('#image-gallery .gallery-item');
+                                if (galleryItems.length > 1 && isAutoTransitioning) {
+                                    galleryItems[currentImageIndex].classList.remove('active');
+                                    currentImageIndex = (currentImageIndex + 1) % galleryItems.length;
+                                    galleryItems[currentImageIndex].classList.add('active');
+                                    updateImageOrderDisplay();
+                                }
+                            }, currentAutoplayTiming);
+                            const seconds = Math.round(currentAutoplayTiming / 1000);
+                            showGalleryMessage(`Auto Mode ${seconds} sec`);
+                            galleryClickState = 0;
                         }
                     };
                 }
