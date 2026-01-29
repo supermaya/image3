@@ -3264,7 +3264,7 @@
             }
 
             // 메시지 표시
-            showGalleryMessage(`자동전환 속도: ${seconds}초`);
+            showGalleryMessage(`Autoplay Speed: ${seconds} sec`);
         }
 
         // 슬라이드 타이머 토글 함수 (3초 → 5초 → 10초 순환)
@@ -3303,7 +3303,7 @@
             }
 
             // 메시지 표시
-            showGalleryMessage(`슬라이드 자동전환: ${nextSeconds}초`);
+            showGalleryMessage(`Slide Speed: ${nextSeconds} sec`);
         }
 
         // 버튼 스타일을 업데이트하는 함수
@@ -6429,7 +6429,7 @@
                                 }
                             }, currentAutoplayTiming);
                             const seconds = Math.round(currentAutoplayTiming / 1000);
-                            showGalleryMessage(`Auto Mode ${seconds} sec`);
+                            showGalleryMessage(`Autoplay: ${seconds} sec`);
                             galleryClickState = 0;
                         }
                     };
@@ -6600,7 +6600,7 @@
                     }
                 }, currentAutoplayTiming);
                 const seconds = Math.round(currentAutoplayTiming / 1000);
-                showGalleryMessage(`Auto Mode ${seconds} sec`);
+                showGalleryMessage(`Autoplay: ${seconds} sec`);
             }
         }
 
