@@ -2298,6 +2298,7 @@
         let userRole = null;
         let userName = null;
         let currentUserId = null;  // 현재 로그인한 사용자의 UID
+        let currentLanguage = localStorage.getItem('language') || 'ko'; // 현재 언어 설정 (기본값: 한국어)
         let itemsPerPage = 8; // 한 페이지에 표시할 항목 수
         let totalItems = 0;
         let totalPages = 0;
@@ -5495,7 +5496,7 @@
             if (!userName && !userRole) {
                 // 갤러리에 메시지 표시
                 setTimeout(() => {
-                    showGalleryMessage('비회원은 자동 재생이 지원되지 않습니다', 2000);
+                    showGalleryMessage('비회원은 다음 갤러리로의 자동재생이 지원되지 않습니다', 2000);
                 }, 1000);
             }
         }
@@ -7438,6 +7439,28 @@
             }
         }
 
+        // 언어 토글 함수
+        function toggleLanguage() {
+            // 언어 토글 (ko <-> en)
+            currentLanguage = currentLanguage === 'ko' ? 'en' : 'ko';
+
+            // localStorage에 저장
+            localStorage.setItem('language', currentLanguage);
+
+            // 화면에 표시되는 언어 코드 업데이트
+            updateLanguageDisplay();
+
+            console.log('언어 변경:', currentLanguage.toUpperCase());
+        }
+
+        // 언어 표시 업데이트 함수
+        function updateLanguageDisplay() {
+            const languageElements = document.querySelectorAll('#current-language');
+            languageElements.forEach(el => {
+                el.textContent = currentLanguage.toUpperCase();
+            });
+        }
+
         async function checkLoginStatus() {
             const loginStatusContainer = document.getElementById('login-status');
 
@@ -7533,6 +7556,7 @@
                                 <button id="slide-timer-button" class="slide-timer-button" onclick="toggleSlideSpeed()" data-seconds="3" title="슬라이드 자동전환 속도">⏱️</button>
                                 ${(userRole === 'creator') ? '<button id="upload-button" onclick="showUploadForm()">업로드</button>' : ''}
                                 ${(userRole === 'admin') ? '<button onclick="location.href=\'admin.html\'">관리자 페이지</button>' : ''}
+                                <button id="language-select-button" class="toggle-button" onclick="toggleLanguage()" title="언어 선택">🌐 <span id="current-language">KO</span></button>
                             </div>
                         </div>
                     `;
@@ -7607,7 +7631,10 @@
                     userRole = null;
                     currentUserId = null;  // 사용자 UID 초기화
                     loginStatusContainer.innerHTML = `
-                        <button onclick="showLoginSection()">로그인 / 회원가입</button>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <button onclick="showLoginSection()">로그인 / 회원가입</button>
+                            <button id="language-select-button" class="toggle-button" onclick="toggleLanguage()" title="언어 선택">🌐 <span id="current-language">KO</span></button>
+                        </div>
                     `;
 
                     // 내목록 데이터 초기화
@@ -8534,6 +8561,10 @@
             await loadCategoriesFromFirestore();
 
             checkLoginStatus();
+
+            // 초기 언어 표시 업데이트 (로그인 상태가 확인되면 다시 한 번 업데이트됨)
+            setTimeout(updateLanguageDisplay, 500);
+
             document.getElementById('copy-link-button').addEventListener('click', copyToClipboard);
 
             // 모바일 반응형 체크
