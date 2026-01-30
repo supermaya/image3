@@ -7563,8 +7563,15 @@
                         </div>
                     `;
 
-                    // 포인트 정보 로드 (HTML 요소 생성 후 호출)
-                    updatePointsDisplay();
+                    // 포인트 정보 로드 및 일일 포인트 지급 체크 (HTML 요소 생성 후 호출)
+                    await updatePointsDisplay();
+
+                    // 로그인 시 일일 포인트 지급 체크
+                    const userDocRef = window.firebaseDoc(window.firebaseDb, 'users', user.uid);
+                    const userDocForDaily = await window.firebaseGetDoc(userDocRef);
+                    if (userDocForDaily.exists()) {
+                        await checkAndUpdateDailyPointsOnLogin(user.uid, userDocForDaily.data());
+                    }
 
                     // 포인트 정보 클릭 이벤트 추가
                     const pointsInfoClickable = document.getElementById('points-info-clickable');
@@ -7694,6 +7701,7 @@
         // 포인트 시스템 관련 함수들
         let currentUserPoints = 0; // 전역 변수로 현재 포인트 저장
 
+        // 포인트 표시 업데이트 함수 (단순화)
         async function updatePointsDisplay() {
             try {
                 const user = window.firebaseAuth.currentUser;
@@ -7730,43 +7738,19 @@
                     if (dailyPointsEl) {
                         dailyPointsEl.textContent = `${dailyPoints}P`;
                         console.log('일일 포인트 표시 업데이트:', dailyPoints);
+                    } else {
+                        console.warn('⚠️ daily-points 요소를 찾을 수 없습니다');
                     }
+
                     if (walletPointsEl) {
                         walletPointsEl.textContent = `${walletBalance}P`;
                         console.log('지갑 포인트 표시 업데이트:', walletBalance);
+                    } else {
+                        console.warn('⚠️ wallet-points 요소를 찾을 수 없습니다');
                     }
 
-                    // 전역 변수에 총 포인트 저장 (포인트 50 이하 체크용)
+                    // 전역 변수에 총 포인트 저장
                     currentUserPoints = totalPoints;
-
-                    // 일일 포인트 지급 체크 (포인트가 지급되면 UI를 다시 업데이트)
-                    const pointsGranted = await checkAndGrantDailyPoints(user.uid, userData);
-
-                    if (pointsGranted) {
-                        // 포인트가 지급되었으면 Firestore에서 최신 데이터를 다시 가져와서 표시
-                        const updatedUserDoc = await window.firebaseGetDoc(userDocRef);
-                        if (updatedUserDoc.exists()) {
-                            const updatedUserData = updatedUserDoc.data();
-                            const updatedDailyPoints = updatedUserData.dailyPoints || 0;
-                            const updatedWalletBalance = updatedUserData.walletBalance || 0;
-                            const updatedTotalPoints = updatedDailyPoints + updatedWalletBalance;
-
-                            // UI 업데이트
-                            if (dailyPointsEl) {
-                                dailyPointsEl.textContent = `${updatedDailyPoints}P`;
-                            }
-                            if (walletPointsEl) {
-                                walletPointsEl.textContent = `${updatedWalletBalance}P`;
-                            }
-
-                            currentUserPoints = updatedTotalPoints;
-                            console.log('일일 포인트 지급 후 UI 업데이트 완료:', {
-                                dailyPoints: updatedDailyPoints,
-                                walletBalance: updatedWalletBalance,
-                                total: updatedTotalPoints
-                            });
-                        }
-                    }
 
                     // 포인트가 50 이하이고 로그인한 사용자라면 구독 팝업 표시
                     if (userName && currentUserPoints <= 50) {
@@ -7777,6 +7761,22 @@
                 }
             } catch (error) {
                 console.error('포인트 정보 로드 오류:', error);
+            }
+        }
+
+        // 로그인 시 일일 포인트 지급 및 UI 업데이트
+        async function checkAndUpdateDailyPointsOnLogin(userId, userData) {
+            try {
+                // 일일 포인트 지급 체크
+                const pointsGranted = await checkAndGrantDailyPoints(userId, userData);
+
+                if (pointsGranted) {
+                    console.log('일일 포인트가 지급되었습니다. UI를 업데이트합니다.');
+                    // 포인트가 지급되었으면 UI 업데이트
+                    await updatePointsDisplay();
+                }
+            } catch (error) {
+                console.error('일일 포인트 지급 및 UI 업데이트 오류:', error);
             }
         }
 
