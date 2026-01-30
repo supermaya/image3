@@ -191,8 +191,8 @@ router.post('/', verifyToken, async (req, res) => {
       purchaseId = purchaseQuery.docs[0].id;
     }
 
-    // 4. Signed URL 생성 (5분 만료)
-    console.log(`🔗 [Signed URL 생성] ZIP 파일: ${galleryData.zipFileUrl}`);
+    // 4. 일회용 다운로드 토큰 생성
+    console.log(`📦 [파일 다운로드 준비] ZIP 파일: ${galleryData.zipFileUrl}`);
 
     // ZIP 파일 경로 추출
     const zipUrl = new URL(galleryData.zipFileUrl);
@@ -203,23 +203,27 @@ router.post('/', verifyToken, async (req, res) => {
     }
 
     const filePath = decodeURIComponent(pathMatch[1]);
-    const file = bucket.file(filePath);
-
-    // 파일 이름 추출
     const fileName = filePath.split('/').pop();
 
-    // Signed URL 생성 (1분 만료 - 보안 강화)
-    const expirationTime = 60; // 1분 (초 단위)
-    const [signedUrl] = await file.getSignedUrl({
-      action: 'read',
-      expires: Date.now() + expirationTime * 1000,
-      responseDisposition: `attachment; filename="${fileName}"`,
-      responseType: 'application/zip'
+    // 일회용 다운로드 토큰 생성
+    const downloadToken = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const expirationTime = 60; // 1분
+
+    // 다운로드 토큰 저장
+    await db.collection('downloadTokens').add({
+      token: downloadToken,
+      userId,
+      galleryId,
+      filePath,
+      fileName,
+      used: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      expiresAt: new Date(Date.now() + expirationTime * 1000)
     });
 
     const executionTime = Date.now() - startTime;
 
-    console.log(`✅ [다운로드 성공] 실행 시간: ${executionTime}ms`);
+    console.log(`✅ [다운로드 토큰 생성 성공] 실행 시간: ${executionTime}ms`);
     console.log(`   - 구매 여부: ${alreadyPurchased ? '재다운로드' : '신규 구매'}`);
     console.log(`   - 포인트 사용: ${pointsUsed}P`);
 
@@ -236,10 +240,12 @@ router.post('/', verifyToken, async (req, res) => {
       filePath
     });
 
-    // 5. 응답 반환
+    // 5. 응답 반환 (다운로드 엔드포인트 URL 제공)
+    const downloadUrl = `https://us-central1-pixelplanet-95dd9.cloudfunctions.net/api/download/file?token=${downloadToken}`;
+
     res.json({
       success: true,
-      downloadUrl: signedUrl,
+      downloadUrl,
       expiresIn: expirationTime, // 1분 (초 단위)
       purchased: alreadyPurchased,
       pointsUsed,
@@ -324,6 +330,121 @@ router.get('/purchases', verifyToken, async (req, res) => {
       success: false,
       message: '구매 내역 조회 중 오류가 발생했습니다.'
     });
+  }
+});
+
+/**
+ * 파일 다운로드 엔드포인트
+ *
+ * GET /api/download/file?token=xxx
+ *
+ * 일회용 토큰을 사용하여 파일을 직접 스트리밍
+ */
+router.get('/file', async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: '토큰이 필요합니다.'
+      });
+    }
+
+    console.log(`📥 [파일 다운로드 요청] 토큰: ${token.substring(0, 20)}...`);
+
+    // 토큰 조회
+    const tokenQuery = await db.collection('downloadTokens')
+      .where('token', '==', token)
+      .limit(1)
+      .get();
+
+    if (tokenQuery.empty) {
+      return res.status(404).json({
+        success: false,
+        message: '유효하지 않은 토큰입니다.'
+      });
+    }
+
+    const tokenDoc = tokenQuery.docs[0];
+    const tokenData = tokenDoc.data();
+
+    // 토큰 검증
+    const now = new Date();
+    const expiresAt = tokenData.expiresAt.toDate();
+
+    if (tokenData.used) {
+      return res.status(403).json({
+        success: false,
+        message: '이미 사용된 토큰입니다.'
+      });
+    }
+
+    if (now > expiresAt) {
+      return res.status(403).json({
+        success: false,
+        message: '만료된 토큰입니다.'
+      });
+    }
+
+    // 토큰을 사용됨으로 표시
+    await tokenDoc.ref.update({
+      used: true,
+      usedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    console.log(`✅ [토큰 검증 완료] 파일: ${tokenData.fileName}`);
+
+    // 파일 스트리밍
+    const file = bucket.file(tokenData.filePath);
+    const [exists] = await file.exists();
+
+    if (!exists) {
+      return res.status(404).json({
+        success: false,
+        message: '파일을 찾을 수 없습니다.'
+      });
+    }
+
+    // 파일 메타데이터 가져오기
+    const [metadata] = await file.getMetadata();
+    const fileSize = metadata.size;
+
+    console.log(`📤 [파일 스트리밍 시작] 크기: ${(fileSize / 1024 / 1024).toFixed(2)}MB`);
+
+    // 응답 헤더 설정
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${tokenData.fileName}"`);
+    res.setHeader('Content-Length', fileSize);
+
+    // 파일 스트리밍
+    const readStream = file.createReadStream();
+
+    readStream.on('error', (error) => {
+      console.error('❌ [스트리밍 오류]:', error);
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          message: '파일 다운로드 중 오류가 발생했습니다.'
+        });
+      }
+    });
+
+    readStream.on('end', () => {
+      console.log(`✅ [다운로드 완료] ${tokenData.fileName}`);
+    });
+
+    readStream.pipe(res);
+
+  } catch (error) {
+    console.error('❌ [파일 다운로드 오류]:', error);
+
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        message: '파일 다운로드 중 오류가 발생했습니다.'
+      });
+    }
   }
 });
 
