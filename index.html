@@ -7563,14 +7563,15 @@
                         </div>
                     `;
 
-                    // 포인트 정보 로드 및 일일 포인트 지급 체크 (HTML 요소 생성 후 호출)
-                    await updatePointsDisplay();
-
-                    // 로그인 시 일일 포인트 지급 체크
+                    // 로그인 시 일일 포인트 지급 체크 먼저 실행 (HTML 요소 생성 후 호출)
                     const userDocRef = window.firebaseDoc(window.firebaseDb, 'users', user.uid);
                     const userDocForDaily = await window.firebaseGetDoc(userDocRef);
                     if (userDocForDaily.exists()) {
+                        // 일일 포인트 지급 체크 및 UI 업데이트
                         await checkAndUpdateDailyPointsOnLogin(user.uid, userDocForDaily.data());
+                    } else {
+                        // 사용자 데이터가 없으면 기본 포인트 정보 로드
+                        await updatePointsDisplay();
                     }
 
                     // 포인트 정보 클릭 이벤트 추가
@@ -7767,16 +7768,32 @@
         // 로그인 시 일일 포인트 지급 및 UI 업데이트
         async function checkAndUpdateDailyPointsOnLogin(userId, userData) {
             try {
+                console.log('🔍 일일 포인트 지급 체크 시작...');
+
                 // 일일 포인트 지급 체크
                 const pointsGranted = await checkAndGrantDailyPoints(userId, userData);
 
                 if (pointsGranted) {
-                    console.log('일일 포인트가 지급되었습니다. UI를 업데이트합니다.');
-                    // 포인트가 지급되었으면 UI 업데이트
-                    await updatePointsDisplay();
+                    console.log('✅ 일일 포인트가 지급되었습니다. UI를 업데이트합니다.');
+
+                    // Firestore 업데이트가 완료될 때까지 약간 대기
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                } else {
+                    console.log('ℹ️ 오늘 이미 포인트를 받았습니다.');
                 }
+
+                // 포인트 지급 여부와 관계없이 UI 업데이트 (최신 포인트 표시)
+                await updatePointsDisplay();
+
+                console.log('✅ UI 업데이트 완료');
             } catch (error) {
-                console.error('일일 포인트 지급 및 UI 업데이트 오류:', error);
+                console.error('❌ 일일 포인트 지급 및 UI 업데이트 오류:', error);
+                // 오류가 발생해도 UI는 업데이트 시도
+                try {
+                    await updatePointsDisplay();
+                } catch (updateError) {
+                    console.error('❌ UI 업데이트 실패:', updateError);
+                }
             }
         }
 
@@ -7789,28 +7806,29 @@
 
             if (lastClaimDate !== today) {
                 try {
-                    // 오늘 아직 포인트를 받지 않았으면 60P 지급
+                    // 오늘 아직 포인트를 받지 않았으면 100P 지급
                     const userDocRef = window.firebaseDoc(window.firebaseDb, 'users', userId);
                     const currentDailyPoints = userData.dailyPoints || 0;
-                    const newDailyPoints = currentDailyPoints + 60;
+                    const DAILY_BONUS = 100; // 일일 보너스 포인트
+                    const newDailyPoints = currentDailyPoints + DAILY_BONUS;
 
                     await window.firebaseSetDoc(userDocRef, {
                         dailyPoints: newDailyPoints,
                         lastDailyPointClaim: today
                     }, { merge: true });
 
-                    console.log('데일리 포인트 지급 완료:', newDailyPoints);
+                    console.log(`✅ 데일리 포인트 지급 완료: +${DAILY_BONUS}P (총: ${newDailyPoints}P)`);
 
                     // 데일리 보너스 메시지 표시 (약간의 지연 후 실행)
                     setTimeout(() => {
                         console.log('데일리 보너스 메시지 표시 시도');
                         showDailyBonusMessage();
-                    }, 500);
+                    }, 800);
 
                     // 포인트가 지급되었음을 반환
                     return true;
                 } catch (error) {
-                    console.error('데일리 포인트 지급 오류:', error);
+                    console.error('❌ 데일리 포인트 지급 오류:', error);
                     return false;
                 }
             }
@@ -9032,7 +9050,7 @@
                         <h3 style="color: #333; margin-bottom: 10px; font-size: 18px;">📋 포인트 사용 안내</h3>
                         <ul style="color: #666; line-height: 1.8; padding-left: 20px; margin: 0;">
                             <li>갤러리 1회 접근 시 17P 차감</li>
-                            <li>일일 로그인 보너스 60P 지급</li>
+                            <li>일일 로그인 보너스 100P 지급</li>
                             <li>구매한 포인트는 영구 보관됩니다</li>
                         </ul>
                     </div>
