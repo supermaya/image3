@@ -5041,7 +5041,7 @@
                     return;
                 }
 
-                showGalleryMessage('⏳ 다운로드 링크 생성 중...', 3000);
+                showGalleryMessage('⏳ 보안 다운로드 링크 생성 중...', 2000);
 
                 // 백엔드 API 호출
                 const idToken = await user.getIdToken();
@@ -5073,12 +5073,15 @@
                 // 포인트 표시 업데이트
                 await updatePointsDisplay();
 
-                // 성공 메시지
-                const message = result.purchased
-                    ? '✅ 4K ZIP 파일 다운로드 시작! (무료 재다운로드)'
-                    : `✅ 4K ZIP 파일 다운로드 시작! (-${result.pointsUsed}P)`;
+                // 성공 메시지 (보안 만료 시간 안내)
+                const expiresInSeconds = result.expiresIn || 60;
+                let message = result.purchased
+                    ? '✅ 4K ZIP 다운로드 시작! (무료 재다운로드)'
+                    : `✅ 4K ZIP 다운로드 시작! (-${result.pointsUsed}P)`;
 
-                showGalleryMessage(message, 3000);
+                message += `\n⚠️ 보안 링크는 ${expiresInSeconds}초 후 만료됩니다.`;
+
+                showGalleryMessage(message, 4000);
 
             } catch (error) {
                 console.error('다운로드 오류:', error);

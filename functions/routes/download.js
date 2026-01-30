@@ -208,10 +208,11 @@ router.post('/', verifyToken, async (req, res) => {
     // 파일 이름 추출
     const fileName = filePath.split('/').pop();
 
-    // Signed URL 생성 (5분 만료)
+    // Signed URL 생성 (1분 만료 - 보안 강화)
+    const expirationTime = 60; // 1분 (초 단위)
     const [signedUrl] = await file.getSignedUrl({
       action: 'read',
-      expires: Date.now() + 5 * 60 * 1000, // 5분
+      expires: Date.now() + expirationTime * 1000,
       responseDisposition: `attachment; filename="${fileName}"`,
       responseType: 'application/zip'
     });
@@ -222,11 +223,24 @@ router.post('/', verifyToken, async (req, res) => {
     console.log(`   - 구매 여부: ${alreadyPurchased ? '재다운로드' : '신규 구매'}`);
     console.log(`   - 포인트 사용: ${pointsUsed}P`);
 
+    // 다운로드 로그 기록 (보안 및 모니터링)
+    await db.collection('downloadLogs').add({
+      userId,
+      galleryId,
+      galleryName: galleryData.name || '제목 없음',
+      isRedownload: alreadyPurchased,
+      pointsCharged: pointsUsed,
+      downloadedAt: admin.firestore.FieldValue.serverTimestamp(),
+      expiresAt: new Date(Date.now() + expirationTime * 1000),
+      fileName,
+      filePath
+    });
+
     // 5. 응답 반환
     res.json({
       success: true,
       downloadUrl: signedUrl,
-      expiresIn: 300, // 5분 (초 단위)
+      expiresIn: expirationTime, // 1분 (초 단위)
       purchased: alreadyPurchased,
       pointsUsed,
       galleryName: galleryData.name || '제목 없음',
