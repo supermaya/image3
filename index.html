@@ -7739,13 +7739,39 @@
                     // 전역 변수에 총 포인트 저장 (포인트 50 이하 체크용)
                     currentUserPoints = totalPoints;
 
+                    // 일일 포인트 지급 체크 (포인트가 지급되면 UI를 다시 업데이트)
+                    const pointsGranted = await checkAndGrantDailyPoints(user.uid, userData);
+
+                    if (pointsGranted) {
+                        // 포인트가 지급되었으면 Firestore에서 최신 데이터를 다시 가져와서 표시
+                        const updatedUserDoc = await window.firebaseGetDoc(userDocRef);
+                        if (updatedUserDoc.exists()) {
+                            const updatedUserData = updatedUserDoc.data();
+                            const updatedDailyPoints = updatedUserData.dailyPoints || 0;
+                            const updatedWalletBalance = updatedUserData.walletBalance || 0;
+                            const updatedTotalPoints = updatedDailyPoints + updatedWalletBalance;
+
+                            // UI 업데이트
+                            if (dailyPointsEl) {
+                                dailyPointsEl.textContent = `${updatedDailyPoints}P`;
+                            }
+                            if (walletPointsEl) {
+                                walletPointsEl.textContent = `${updatedWalletBalance}P`;
+                            }
+
+                            currentUserPoints = updatedTotalPoints;
+                            console.log('일일 포인트 지급 후 UI 업데이트 완료:', {
+                                dailyPoints: updatedDailyPoints,
+                                walletBalance: updatedWalletBalance,
+                                total: updatedTotalPoints
+                            });
+                        }
+                    }
+
                     // 포인트가 50 이하이고 로그인한 사용자라면 구독 팝업 표시
                     if (userName && currentUserPoints <= 50) {
                         showSubscriptionPopup();
                     }
-
-                    // 일일 포인트 지급 체크
-                    await checkAndGrantDailyPoints(user.uid, userData);
                 } else {
                     console.log('updatePointsDisplay: Firestore 문서가 존재하지 않음');
                 }
@@ -7775,19 +7801,22 @@
 
                     console.log('데일리 포인트 지급 완료:', newDailyPoints);
 
-                    // UI 업데이트
-                    const dailyPointsEl = document.getElementById('daily-points');
-                    if (dailyPointsEl) dailyPointsEl.textContent = `${newDailyPoints}P`;
-
                     // 데일리 보너스 메시지 표시 (약간의 지연 후 실행)
                     setTimeout(() => {
                         console.log('데일리 보너스 메시지 표시 시도');
                         showDailyBonusMessage();
                     }, 500);
+
+                    // 포인트가 지급되었음을 반환
+                    return true;
                 } catch (error) {
                     console.error('데일리 포인트 지급 오류:', error);
+                    return false;
                 }
             }
+
+            // 포인트가 지급되지 않았음을 반환
+            return false;
         }
 
         // 데일리 보너스 메시지 표시 함수
