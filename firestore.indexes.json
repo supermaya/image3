@@ -71,13 +71,6 @@
         { "fieldPath": "type", "order": "ASCENDING" },
         { "fieldPath": "purchasedAt", "order": "DESCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "downloadTokens",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "token", "order": "ASCENDING" }
-      ]
     }
   ],
   "fieldOverrides": []
