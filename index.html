@@ -5067,12 +5067,8 @@
                 }
 
                 // Signed URL로 다운로드 시작
-                const link = document.createElement('a');
-                link.href = result.downloadUrl;
-                link.download = `gallery_${musicId}_4k.zip`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                // 새 창에서 열어서 브라우저가 자동으로 다운로드하도록 함
+                window.open(result.downloadUrl, '_blank');
 
                 // 포인트 표시 업데이트
                 await updatePointsDisplay();

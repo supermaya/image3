@@ -1,0 +1,872 @@
+================================================================================
+                   포인트 시스템 보안 검토 리포트
+================================================================================
+
+검토일: 2026-01-28
+프로젝트: Image3 (pixelplanet-95dd9)
+검토 범위: pointTransactions 컬렉션 및 포인트 시스템
+
+================================================================================
+1. 요약
+================================================================================
+
+현재 포인트 시스템에는 심각한 보안 취약점이 존재합니다.
+
+[주요 발견사항]
+✅ GOOD: pointTransactions 컬렉션은 클라이언트 쓰기가 완전히 차단됨
+❌ CRITICAL: users 컬렉션의 포인트 필드를 클라이언트에서 직접 조작 가능
+❌ HIGH: 포인트 거래 내역이 누락될 수 있음
+❌ MEDIUM: 서버 측 포인트 API가 구현되지 않음
+
+[보안 등급]
+전체 평가: 🔴 위험 (Critical)
+
+================================================================================
+2. Firestore 보안 규칙 분석
+================================================================================
+
+2.1 pointTransactions 컬렉션 규칙
+---------------------------------
+파일: firestore.rules (21-27줄)
+
+규칙 코드:
+```
+match /pointTransactions/{transactionId} {
+  // 본인의 거래 내역만 읽을 수 있음
+  allow read: if request.auth != null &&
+              resource.data.userId == request.auth.uid;
+  // 쓰기는 서버 측에서만 (관리자 권한 필요)
+  allow write: if false;
+}
+```
+
+평가: ✅ 우수
+- 클라이언트에서 절대로 쓰기 불가능 (allow write: if false)
+- 읽기는 본인 데이터만 가능
+- 관리자도 클라이언트에서는 쓰기 불가 (서버 측 Admin SDK만 가능)
+
+장점:
+- 포인트 거래 내역 위조 불가능
+- 과거 거래 수정/삭제 불가능
+- 투명한 거래 추적
+
+단점:
+- 없음 (의도된 설계)
+
+
+2.2 users 컬렉션 규칙 (포인트 관련)
+-----------------------------------
+파일: firestore.rules (6-18줄)
+
+규칙 코드:
+```
+match /users/{userId} {
+  // 본인의 데이터 읽기 가능
+  allow read: if request.auth != null && request.auth.uid == userId;
+
+  // 본인의 데이터 쓰기 가능
+  allow write: if request.auth != null && request.auth.uid == userId;
+
+  // 관리자는 모든 사용자 데이터 읽기 및 쓰기 가능
+  allow read, write: if request.auth != null &&
+                       exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+}
+```
+
+평가: ❌ 심각한 취약점 발견
+
+문제점:
+1. **포인트 필드 조작 가능**
+   - dailyPoints, walletBalance를 사용자가 직접 수정 가능
+   - 브라우저 개발자 도구로 코드 수정하여 포인트 증가 가능
+   - 예: dailyPoints = 999999 설정
+
+2. **역할(role) 필드 조작 가능**
+   - 사용자가 자신의 role을 'admin'으로 변경 가능
+   - 관리자 권한 탈취 가능
+
+3. **필드별 세분화된 권한 부재**
+   - 모든 필드에 동일한 권한 적용
+   - displayName, photoURL 같은 일반 필드와 포인트 필드가 동일한 보안 수준
+
+
+관련 필드:
+- dailyPoints: number      # 일일 포인트 (자정 초기화)
+- walletBalance: number    # 지갑 포인트 (영구)
+- role: string             # 사용자 역할
+
+================================================================================
+3. 클라이언트 코드 분석
+================================================================================
+
+3.1 포인트 사용 함수 (usePoints)
+---------------------------------
+파일: index.html (7861-7923줄)
+
+코드 요약:
+```javascript
+async function usePoints(amount = 17) {
+    const userDocRef = firebaseDoc(firebaseDb, 'users', user.uid);
+
+    // 🔴 클라이언트에서 직접 Firestore 트랜잭션 실행
+    const result = await firebaseRunTransaction(firebaseDb, async (transaction) => {
+        const userDoc = await transaction.get(userDocRef);
+        const userData = userDoc.data();
+        let dailyPoints = userData.dailyPoints || 0;
+        let walletBalance = userData.walletBalance || 0;
+
+        // 포인트 차감 로직
+        if (dailyPoints >= amount) {
+            dailyPoints -= amount;
+        } else {
+            const remaining = amount - dailyPoints;
+            dailyPoints = 0;
+            walletBalance -= remaining;
+        }
+
+        // 🔴 클라이언트에서 직접 포인트 업데이트
+        transaction.update(userDocRef, {
+            dailyPoints: dailyPoints,
+            walletBalance: walletBalance
+        });
+
+        return { success: true, dailyPoints, walletBalance };
+    });
+}
+```
+
+보안 문제:
+1. ❌ 클라이언트에서 포인트 차감 로직 실행
+2. ❌ 사용자가 코드를 수정하여 포인트를 증가시킬 수 있음
+3. ❌ pointTransactions에 거래 내역이 기록되지 않음
+4. ⚠️  트랜잭션 사용으로 동시성 문제는 방지됨 (부분적 안전)
+
+공격 시나리오:
+```javascript
+// 개발자 도구에서 코드 수정
+async function usePoints(amount = 17) {
+    // 포인트 차감 대신 증가!
+    transaction.update(userDocRef, {
+        dailyPoints: 999999,
+        walletBalance: 999999
+    });
+}
+```
+
+
+3.2 포인트 추가 함수 (addPoints)
+---------------------------------
+파일: index.html (7926-7976줄)
+
+코드 요약:
+```javascript
+async function addPoints(amount, source = 'ad') {
+    const result = await firebaseRunTransaction(firebaseDb, async (transaction) => {
+        // 광고 시청은 일일 포인트로, 구매는 지갑 포인트로
+        if (source === 'ad') {
+            dailyPoints += amount;
+        } else if (source === 'purchase') {
+            walletBalance += amount;
+        }
+
+        // 🔴 클라이언트에서 직접 포인트 업데이트
+        transaction.update(userDocRef, {
+            dailyPoints: dailyPoints,
+            walletBalance: walletBalance
+        });
+    });
+}
+```
+
+보안 문제:
+1. ❌ 광고를 보지 않고도 포인트 추가 가능
+2. ❌ source 파라미터를 조작하여 무제한 포인트 획득 가능
+3. ❌ pointTransactions에 거래 내역이 기록되지 않음
+
+
+3.3 포인트 구매 함수
+--------------------
+파일: index.html (8920-8949줄)
+
+코드 요약:
+```javascript
+// 포인트 업데이트
+await firebaseSetDoc(userDocRef, {
+    walletBalance: newWalletBalance
+}, { merge: true });
+
+// 🔴 거래 내역 추가 시도 (실패함!)
+const transactionRef = firebaseCollection(firebaseDb, 'pointTransactions');
+await firebaseAddDoc(transactionRef, {
+    userId: user.uid,
+    type: 'purchase',
+    amount: points,
+    price: price,
+    description: `포인트 구매 (+${points}P)`,
+    createdAt: new Date()
+});
+```
+
+보안 문제:
+1. ❌ 클라이언트에서 포인트 구매 로직 실행
+2. ❌ 실제 결제 없이 포인트만 추가 가능
+3. ❌ pointTransactions 쓰기가 차단되어 있어서 에러 발생 (의도적)
+4. ❌ 거래 내역 없이 포인트만 증가
+
+실제 동작:
+- walletBalance 업데이트: ✅ 성공 (users 컬렉션 쓰기 가능)
+- pointTransactions 추가: ❌ 실패 (allow write: if false)
+- 결과: 포인트는 증가하지만 거래 내역은 없음 (불일치!)
+
+================================================================================
+4. 서버 측 코드 분석
+================================================================================
+
+4.1 Firebase Functions 구조
+----------------------------
+파일: functions/index.js
+
+사용 가능한 라우트:
+- /music      (음악 관리)
+- /user       (사용자 프로필)
+- /download   (다운로드)
+
+❌ 누락된 라우트:
+- /points     (포인트 관리) - 구현 안됨!
+- /auth       (인증) - 주석 처리됨
+
+평가:
+- 포인트 시스템을 위한 서버 측 API가 존재하지 않음
+- 모든 포인트 로직이 클라이언트에서 실행됨
+- 서버 측 검증 및 제어 불가능
+
+================================================================================
+5. 취약점 상세 분석
+================================================================================
+
+5.1 Critical 취약점
+-------------------
+
+[VULN-001] 클라이언트 측 포인트 조작
+심각도: 🔴 Critical
+CVSS 점수: 9.1 (Critical)
+
+설명:
+사용자가 브라우저 개발자 도구를 통해 JavaScript 코드를 수정하여
+포인트를 임의로 조작할 수 있습니다.
+
+영향:
+- 무제한 포인트 생성
+- 포인트 시스템 완전 붕괴
+- 경제 시스템 무용화
+- 유료 서비스 무단 이용
+
+재현 방법:
+1. 브라우저 개발자 도구 열기
+2. Console 탭에서 다음 코드 실행:
+   ```javascript
+   const userDocRef = window.firebaseDoc(window.firebaseDb, 'users',
+                                         window.firebaseAuth.currentUser.uid);
+   await window.firebaseSetDoc(userDocRef, {
+       dailyPoints: 999999,
+       walletBalance: 999999
+   }, { merge: true });
+   ```
+3. 포인트 999,999P 획득 완료
+
+관련 파일:
+- index.html: 7861-7923 (usePoints)
+- index.html: 7926-7976 (addPoints)
+- index.html: 8920-8949 (포인트 구매)
+- firestore.rules: 7-12 (users 쓰기 규칙)
+
+
+[VULN-002] 역할(Role) 상승 공격
+심각도: 🔴 Critical
+CVSS 점수: 9.3 (Critical)
+
+설명:
+사용자가 자신의 role 필드를 'admin'으로 변경하여
+관리자 권한을 획득할 수 있습니다.
+
+영향:
+- 전체 시스템 관리자 권한 탈취
+- 다른 사용자 데이터 접근 및 수정
+- 모든 갤러리 삭제 가능
+- 시스템 완전 장악
+
+재현 방법:
+```javascript
+const userDocRef = window.firebaseDoc(window.firebaseDb, 'users',
+                                     window.firebaseAuth.currentUser.uid);
+await window.firebaseSetDoc(userDocRef, {
+    role: 'admin'
+}, { merge: true });
+// 이제 관리자입니다!
+```
+
+관련 파일:
+- firestore.rules: 7-12 (users 쓰기 규칙)
+
+
+5.2 High 취약점
+---------------
+
+[VULN-003] 거래 내역 누락
+심각도: 🟠 High
+CVSS 점수: 7.5 (High)
+
+설명:
+pointTransactions 컬렉션에 쓰기가 차단되어 있어서
+클라이언트에서 거래 내역 추가 시도가 실패합니다.
+하지만 users 컬렉션의 포인트는 업데이트되어 불일치가 발생합니다.
+
+영향:
+- 포인트 거래 감사 불가능
+- 부정 사용 추적 불가능
+- 데이터 무결성 손상
+- 회계 불일치
+
+관련 파일:
+- index.html: 8931-8939 (pointTransactions 쓰기 시도)
+- firestore.rules: 26 (allow write: if false)
+
+
+[VULN-004] 결제 검증 부재
+심각도: 🟠 High
+CVSS 점수: 8.2 (High)
+
+설명:
+포인트 구매 로직이 클라이언트에서 실행되며,
+실제 결제 검증이 없습니다.
+
+영향:
+- 결제 없이 포인트 획득
+- 매출 손실
+- 사기 거래
+
+관련 파일:
+- index.html: 8920-8949
+
+
+5.3 Medium 취약점
+-----------------
+
+[VULN-005] 서버 측 API 부재
+심각도: 🟡 Medium
+CVSS 점수: 6.0 (Medium)
+
+설명:
+포인트 관리를 위한 서버 측 API가 구현되지 않았습니다.
+
+영향:
+- 클라이언트 측 로직 의존
+- 보안 제어 불가능
+- 중앙 집중식 관리 불가
+
+관련 파일:
+- functions/index.js (포인트 라우트 없음)
+
+================================================================================
+6. 권고사항
+================================================================================
+
+6.1 즉시 조치 필요 (Critical)
+------------------------------
+
+1. ⚠️ URGENT: users 컬렉션 보안 규칙 수정
+
+현재 규칙:
+```
+match /users/{userId} {
+  allow write: if request.auth != null && request.auth.uid == userId;
+}
+```
+
+권장 규칙:
+```
+match /users/{userId} {
+  // 읽기는 본인만
+  allow read: if request.auth != null && request.auth.uid == userId;
+
+  // 쓰기는 필드별 세분화
+  allow update: if request.auth != null &&
+                   request.auth.uid == userId &&
+                   // 수정 가능한 필드만 허용
+                   request.resource.data.diff(resource.data).affectedKeys()
+                     .hasOnly(['displayName', 'photoURL', 'bio', 'preferences']) &&
+                   // 포인트 및 역할 필드는 수정 불가
+                   request.resource.data.dailyPoints == resource.data.dailyPoints &&
+                   request.resource.data.walletBalance == resource.data.walletBalance &&
+                   request.resource.data.role == resource.data.role;
+
+  // 관리자는 모든 권한
+  allow read, write: if isAdmin();
+}
+```
+
+효과:
+- 포인트 필드 조작 차단
+- 역할 변경 차단
+- 일반 프로필 필드만 수정 가능
+
+
+2. ⚠️ URGENT: 서버 측 포인트 API 구현
+
+구현 필요 엔드포인트:
+```
+POST   /api/points/use          # 포인트 사용
+POST   /api/points/add          # 포인트 추가 (광고 시청)
+POST   /api/points/purchase     # 포인트 구매
+GET    /api/points/balance      # 잔액 조회
+GET    /api/points/transactions # 거래 내역
+```
+
+파일 생성:
+- functions/routes/points.js
+
+핵심 로직:
+```javascript
+import { getFirestore } from 'firebase-admin/firestore';
+const db = getFirestore();
+
+export async function usePoints(userId, amount, description) {
+    const userRef = db.collection('users').doc(userId);
+
+    // Admin SDK로 트랜잭션 실행
+    await db.runTransaction(async (transaction) => {
+        const userDoc = await transaction.get(userRef);
+        const userData = userDoc.data();
+
+        let dailyPoints = userData.dailyPoints || 0;
+        let walletBalance = userData.walletBalance || 0;
+        const totalPoints = dailyPoints + walletBalance;
+
+        if (totalPoints < amount) {
+            throw new Error('Insufficient points');
+        }
+
+        // 포인트 차감
+        if (dailyPoints >= amount) {
+            dailyPoints -= amount;
+        } else {
+            const remaining = amount - dailyPoints;
+            dailyPoints = 0;
+            walletBalance -= remaining;
+        }
+
+        // 포인트 업데이트
+        transaction.update(userRef, {
+            dailyPoints,
+            walletBalance
+        });
+
+        // 거래 내역 추가 (Admin SDK는 rules 무시)
+        const transactionRef = db.collection('pointTransactions').doc();
+        transaction.set(transactionRef, {
+            userId,
+            type: 'usage',
+            amount: -amount,
+            description,
+            createdAt: new Date()
+        });
+    });
+}
+```
+
+효과:
+- 서버 측에서 포인트 로직 실행
+- 클라이언트 조작 불가능
+- 거래 내역 자동 기록
+- Admin SDK가 Firestore Rules 우회
+
+
+3. ⚠️ URGENT: 클라이언트 코드 수정
+
+수정 필요 함수:
+- usePoints() (7861-7923줄)
+- addPoints() (7926-7976줄)
+- 포인트 구매 로직 (8920-8949줄)
+
+변경 방법:
+```javascript
+// 기존: 클라이언트에서 직접 Firestore 조작
+async function usePoints(amount = 17) {
+    await firebaseRunTransaction(...); // ❌ 제거
+}
+
+// 신규: 서버 API 호출
+async function usePoints(amount = 17, description) {
+    const token = await getIdToken();
+    const response = await fetch('/api/points/use', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ amount, description })
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to use points');
+    }
+
+    return await response.json();
+}
+```
+
+효과:
+- 모든 포인트 로직이 서버에서 실행
+- 클라이언트 조작 불가능
+
+
+6.2 단기 조치 (1주일 이내)
+---------------------------
+
+4. 결제 시스템 통합
+
+권장 사항:
+- 서버 측에서 결제 검증
+- 결제 완료 후에만 포인트 지급
+- 결제 영수증 저장
+
+예시 (Stripe 사용):
+```javascript
+// functions/routes/points.js
+export async function purchasePoints(userId, amount, paymentMethodId) {
+    // 1. Stripe로 결제 처리
+    const paymentIntent = await stripe.paymentIntents.create({
+        amount: calculatePrice(amount),
+        currency: 'krw',
+        payment_method: paymentMethodId,
+        confirm: true
+    });
+
+    if (paymentIntent.status !== 'succeeded') {
+        throw new Error('Payment failed');
+    }
+
+    // 2. 결제 성공 후 포인트 지급
+    await db.runTransaction(async (transaction) => {
+        // 포인트 업데이트
+        // 거래 내역 추가
+        // 결제 영수증 저장
+    });
+}
+```
+
+
+5. 감사 로그 시스템 구축
+
+로깅 대상:
+- 모든 포인트 거래
+- 역할 변경
+- 관리자 작업
+- 실패한 접근 시도
+
+구현:
+```javascript
+// 모든 포인트 변경 시 로그 기록
+await db.collection('auditLogs').add({
+    userId,
+    action: 'POINTS_USED',
+    amount,
+    before: totalPointsBefore,
+    after: totalPointsAfter,
+    timestamp: new Date(),
+    ip: request.ip,
+    userAgent: request.headers['user-agent']
+});
+```
+
+
+6. 포인트 거래 검증 시스템
+
+정기 검증:
+```javascript
+// 매일 자정 실행 (Cloud Scheduler)
+export const validatePointTransactions = onSchedule('0 0 * * *', async () => {
+    const users = await db.collection('users').get();
+
+    for (const userDoc of users.docs) {
+        const userId = userDoc.id;
+        const userData = userDoc.data();
+
+        // users 컬렉션의 포인트
+        const currentPoints = (userData.dailyPoints || 0) +
+                            (userData.walletBalance || 0);
+
+        // pointTransactions에서 계산한 포인트
+        const transactions = await db.collection('pointTransactions')
+            .where('userId', '==', userId)
+            .get();
+
+        let calculatedPoints = 0;
+        transactions.forEach(doc => {
+            calculatedPoints += doc.data().amount;
+        });
+
+        // 불일치 발견 시 알림
+        if (currentPoints !== calculatedPoints) {
+            console.error(`Point mismatch for user ${userId}`);
+            // 관리자에게 알림 발송
+        }
+    }
+});
+```
+
+
+6.3 중기 조치 (1개월 이내)
+--------------------------
+
+7. 레이트 리미팅 (Rate Limiting)
+
+목적:
+- 포인트 API 남용 방지
+- DDoS 공격 방지
+
+구현:
+```javascript
+import rateLimit from 'express-rate-limit';
+
+const pointsLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15분
+    max: 10, // 최대 10번
+    message: 'Too many requests, please try again later.'
+});
+
+app.use('/api/points/use', pointsLimiter);
+```
+
+
+8. 포인트 이상 탐지 시스템
+
+감지 대상:
+- 단시간 내 대량 포인트 획득
+- 비정상적인 사용 패턴
+- 의심스러운 거래
+
+구현:
+```javascript
+async function detectAnomalies(userId) {
+    const recentTransactions = await db.collection('pointTransactions')
+        .where('userId', '==', userId)
+        .where('createdAt', '>', new Date(Date.now() - 3600000)) // 1시간
+        .get();
+
+    const totalAmount = recentTransactions.docs.reduce(
+        (sum, doc) => sum + doc.data().amount, 0
+    );
+
+    // 1시간에 1000P 이상 획득 시 의심
+    if (totalAmount > 1000) {
+        await flagSuspiciousActivity(userId);
+    }
+}
+```
+
+
+9. 2단계 인증 (2FA) for 관리자
+
+구현:
+- 관리자 계정에 2FA 필수
+- 중요 작업 시 재인증
+- SMS 또는 TOTP 사용
+
+
+6.4 장기 조치 (3개월 이내)
+--------------------------
+
+10. 완전한 서버 측 아키텍처 전환
+
+목표:
+- 모든 비즈니스 로직을 서버로 이동
+- 클라이언트는 UI만 담당
+- Firestore는 서버만 접근
+
+보안 규칙:
+```
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 기본적으로 모든 클라이언트 접근 차단
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 필요한 컬렉션만 최소 권한으로 열기
+    match /galleries/{galleryId} {
+      allow read: if request.auth != null;
+      // 쓰기는 서버 측에서만
+    }
+  }
+}
+```
+
+
+11. 포인트 백업 및 복구 시스템
+
+구현:
+- 매일 포인트 스냅샷 저장
+- 비정상 거래 발견 시 롤백
+- 사용자 포인트 복구 기능
+
+
+12. 보안 모니터링 대시보드
+
+기능:
+- 실시간 포인트 거래 모니터링
+- 이상 거래 알림
+- 사용자 활동 추적
+- 보안 이벤트 로그
+
+================================================================================
+7. 테스트 계획
+================================================================================
+
+7.1 보안 테스트
+---------------
+
+테스트 케이스:
+1. 클라이언트에서 포인트 직접 수정 시도
+   예상: 차단됨
+
+2. 클라이언트에서 role 변경 시도
+   예상: 차단됨
+
+3. 서버 API를 통한 포인트 사용
+   예상: 성공, 거래 내역 기록
+
+4. 포인트 부족 시 사용 시도
+   예상: 에러 반환
+
+5. 동시에 여러 요청으로 포인트 사용
+   예상: 트랜잭션으로 정확한 차감
+
+
+7.2 통합 테스트
+---------------
+
+시나리오:
+1. 회원가입 → 초기 포인트 확인
+2. 일일 보너스 수령 → 포인트 증가 확인
+3. 갤러리 접근 → 포인트 차감 확인
+4. 거래 내역 조회 → 모든 거래 기록 확인
+5. 포인트 구매 → 결제 및 포인트 지급 확인
+
+
+7.3 성능 테스트
+---------------
+
+부하 테스트:
+- 동시 사용자 1000명
+- 초당 포인트 거래 100건
+- 응답 시간 < 500ms
+
+================================================================================
+8. 우선순위 및 일정
+================================================================================
+
+즉시 (24시간 이내):
+- [CRITICAL] Firestore 보안 규칙 수정
+- [CRITICAL] 클라이언트 포인트 조작 차단
+
+1주일:
+- [HIGH] 서버 측 포인트 API 구현
+- [HIGH] 클라이언트 코드 API 호출로 변경
+- [HIGH] 기본 테스트
+
+2주일:
+- [MEDIUM] 결제 시스템 통합
+- [MEDIUM] 감사 로그 시스템
+- [MEDIUM] 레이트 리미팅
+
+1개월:
+- [LOW] 이상 탐지 시스템
+- [LOW] 2단계 인증
+- [LOW] 모니터링 대시보드
+
+================================================================================
+9. 추가 참고사항
+================================================================================
+
+9.1 Firebase Admin SDK 권한
+----------------------------
+Admin SDK는 Firestore Security Rules를 우회합니다.
+- 장점: 서버 측에서 모든 작업 가능
+- 주의: Admin SDK 코드는 철저히 검증 필요
+- 권장: Admin SDK는 Cloud Functions에서만 사용
+
+
+9.2 트랜잭션 vs Batch
+----------------------
+포인트 차감은 반드시 트랜잭션 사용:
+```javascript
+// ✅ Good: 트랜잭션
+await db.runTransaction(async (transaction) => {
+    const userDoc = await transaction.get(userRef);
+    // 읽기 → 계산 → 쓰기
+    transaction.update(userRef, { points: newPoints });
+});
+
+// ❌ Bad: 일반 업데이트
+const userDoc = await db.collection('users').doc(userId).get();
+await db.collection('users').doc(userId).update({ points: newPoints });
+// 동시성 문제 발생 가능!
+```
+
+
+9.3 보안 규칙 테스트
+--------------------
+Firebase 에뮬레이터로 규칙 테스트:
+```bash
+firebase emulators:start
+```
+
+테스트 스크립트:
+```javascript
+// tests/firestore.rules.test.js
+import { assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
+
+test('사용자는 본인 포인트를 수정할 수 없음', async () => {
+    const db = getFirestore(myId);
+    const userRef = db.collection('users').doc(myId);
+
+    await assertFails(
+        userRef.update({ dailyPoints: 999999 })
+    );
+});
+```
+
+================================================================================
+10. 결론
+================================================================================
+
+현재 포인트 시스템은 심각한 보안 취약점을 가지고 있습니다.
+
+[핵심 문제]
+1. 클라이언트가 포인트를 직접 조작할 수 있음
+2. 사용자 역할을 마음대로 변경할 수 있음
+3. 서버 측 검증이 전혀 없음
+4. 포인트 거래 내역이 누락됨
+
+[조치 우선순위]
+1. 🔴 즉시: Firestore 보안 규칙 수정 (포인트 필드 쓰기 차단)
+2. 🔴 즉시: 서버 측 포인트 API 구현
+3. 🟠 1주일: 클라이언트 코드 전면 수정
+4. 🟡 1개월: 감사 및 모니터링 시스템 구축
+
+[예상 효과]
+- 포인트 조작 완전 차단
+- 거래 내역 100% 기록
+- 보안 사고 예방
+- 시스템 신뢰성 향상
+
+권장사항:
+이 보고서의 조치사항을 우선순위대로 즉시 시행하여
+포인트 시스템의 보안을 확보하시기 바랍니다.
+
+================================================================================
+리포트 작성: 2026-01-28
+작성자: Security Review Team
+================================================================================

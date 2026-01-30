@@ -24,7 +24,12 @@
       "Bash(git log:*)",
       "Bash(git commit:*)",
       "WebFetch(domain:us-central1-pixelplanet-95dd9.cloudfunctions.net)",
-      "Bash(firebase functions:log:*)"
+      "Bash(firebase functions:log:*)",
+      "Bash(git restore:*)",
+      "mcp__ide__executeCode",
+      "Bash(python:*)",
+      "Bash(if exist src dir /B /A src)",
+      "Bash(git revert:*)"
     ],
     "deny": [],
     "ask": []

@@ -205,10 +205,15 @@ router.post('/', verifyToken, async (req, res) => {
     const filePath = decodeURIComponent(pathMatch[1]);
     const file = bucket.file(filePath);
 
+    // 파일 이름 추출
+    const fileName = filePath.split('/').pop();
+
     // Signed URL 생성 (5분 만료)
     const [signedUrl] = await file.getSignedUrl({
       action: 'read',
       expires: Date.now() + 5 * 60 * 1000, // 5분
+      responseDisposition: `attachment; filename="${fileName}"`,
+      responseType: 'application/zip'
     });
 
     const executionTime = Date.now() - startTime;

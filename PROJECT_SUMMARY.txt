@@ -1,0 +1,685 @@
+================================================================================
+                        IMAGE3 프로젝트 구성 및 기능 요약
+================================================================================
+
+프로젝트명: Image3
+버전: 2.0.0
+설명: 음악 및 이미지 갤러리 플랫폼 (Firebase 기반)
+배포 URL: https://pixelplanet-95dd9.web.app
+
+================================================================================
+1. 프로젝트 개요
+================================================================================
+
+Image3는 음악과 이미지 갤러리를 결합한 멀티미디어 플랫폼입니다.
+사용자는 음악을 들으며 이미지 갤러리를 감상할 수 있으며,
+크리에이터는 자신의 콘텐츠를 업로드하고 공유할 수 있습니다.
+
+주요 특징:
+- 음악과 이미지가 결합된 독특한 갤러리 경험
+- 포인트 시스템을 통한 콘텐츠 접근 관리
+- 역할 기반 권한 시스템 (일반 사용자, 크리에이터, 관리자)
+- Firebase 기반의 확장 가능한 인프라
+- 실시간 데이터 동기화
+
+마이그레이션 히스토리:
+- 기존: FastComet 서버 (MySQL + PHP)
+- 현재: Firebase (Firestore + Cloud Functions + Hosting)
+
+================================================================================
+2. 기술 스택
+================================================================================
+
+[프론트엔드]
+- HTML5, CSS3, JavaScript (ES6+)
+- SheetJS (XLSX) - 엑셀 파일 파싱
+- Firebase SDK 12.4.0
+  - Firebase Authentication
+  - Firebase Firestore
+  - Firebase Storage
+
+[백엔드]
+- Node.js 20.x
+- Express.js 5.1.0
+- Firebase Admin SDK 13.5.0
+- Firebase Cloud Functions
+
+[주요 라이브러리]
+- jsonwebtoken 9.0.2 - JWT 토큰 인증
+- multer 1.4.5 - 파일 업로드
+- cors 2.8.5 - CORS 정책 관리
+- helmet 8.1.0 - 보안 헤더
+- winston 3.18.3 - 로깅
+- dotenv 17.2.3 - 환경 변수 관리
+
+[데이터베이스]
+- Firebase Firestore (NoSQL)
+
+[스토리지]
+- Firebase Storage (Cloud Storage)
+
+[배포 및 호스팅]
+- Firebase Hosting
+- Firebase Cloud Functions
+
+[개발 도구]
+- Jest 30.2.0 - 테스트
+- Supertest 7.1.4 - API 테스트
+- Serve 14.2.5 - 정적 파일 서버
+
+================================================================================
+3. 프로젝트 구조
+================================================================================
+
+Image3/
+├── src/                              # 백엔드 소스 코드
+│   ├── config/                       # 설정 파일
+│   │   └── firebase.js               # Firebase 초기화
+│   ├── middleware/                   # Express 미들웨어
+│   │   └── auth.js                   # JWT 인증 미들웨어
+│   ├── routes/                       # API 라우트
+│   │   ├── auth.js                   # 인증 라우트
+│   │   ├── points.js                 # 포인트 시스템
+│   │   ├── music.js                  # 음악 관리
+│   │   └── user.js                   # 사용자 프로필
+│   ├── services/                     # 비즈니스 로직
+│   ├── utils/                        # 유틸리티 함수
+│   │   └── api.js                    # 프론트엔드 API 클라이언트
+│   ├── components/                   # 재사용 가능한 컴포넌트
+│   ├── lib/                          # 라이브러리
+│   ├── pages/                        # 페이지 컴포넌트
+│   └── server.js                     # Express 서버 진입점
+│
+├── functions/                        # Firebase Cloud Functions
+│   ├── config/                       # Functions 설정
+│   ├── middleware/                   # Functions 미들웨어
+│   ├── routes/                       # Functions API 라우트
+│   ├── index.js                      # Functions 진입점
+│   └── package.json                  # Functions 의존성
+│
+├── scripts/                          # 유틸리티 스크립트
+├── database/                         # 데이터베이스 관련 파일
+├── old/                              # 레거시 파일 (PHP 등)
+│
+├── index.html                        # 메인 프론트엔드 (421KB)
+├── admin.html                        # 관리자 페이지
+├── creator-manage.html               # 크리에이터 관리 페이지
+├── gallery_access.js                 # 갤러리 접근 제어
+│
+├── firestore.rules                   # Firestore 보안 규칙
+├── firestore.indexes.json            # Firestore 인덱스
+├── storage.rules                     # Storage 보안 규칙
+├── firebase.json                     # Firebase 설정
+├── .env                              # 환경 변수
+├── package.json                      # 프로젝트 의존성
+└── README.md                         # 프로젝트 문서
+
+================================================================================
+4. 주요 기능
+================================================================================
+
+4.1 사용자 인증 및 권한 관리
+----------------------------
+- 이메일/비밀번호 기반 회원가입 및 로그인
+- Firebase Authentication + JWT 토큰 인증
+- 3단계 역할 시스템:
+  * user (일반 사용자): 콘텐츠 감상, 포인트 사용
+  * creator (크리에이터): 콘텐츠 업로드 및 관리
+  * admin (관리자): 전체 시스템 관리
+
+4.2 포인트 시스템
+-------------------
+- 일일 보너스: 매일 60P 자동 지급
+- 포인트 차감: 갤러리 접근 시 17P 차감
+- 포인트 내역: 모든 거래 내역 추적
+- 이중 포인트 시스템:
+  * dailyPoints: 일일 획득 포인트 (자정 초기화)
+  * walletBalance: 구매한 포인트 (영구 보관)
+- 관리자 포인트 지급 기능
+- 크리에이터/관리자는 포인트 차감 없이 갤러리 접근 가능
+
+4.3 음악 및 갤러리 관리
+-----------------------
+- 음악 파일 업로드 (크리에이터 전용)
+- 이미지 갤러리 업로드 (다중 이미지 지원)
+- 4K 고화질 이미지 ZIP 파일 업로드
+- 엑셀 파일을 통한 이미지 메타데이터 관리:
+  * 형식: 이미지번호, 제목, 설명 (3개 컬럼)
+  * SheetJS를 사용한 클라이언트 사이드 파싱
+- 카테고리별 분류 (Portrait, Street, Landscape, Documentary, Future&Sci-Fi 등)
+- 자동 전환 타이밍 설정 (1~60초)
+- 이미지 순서 표시 및 네비게이션
+
+4.4 갤러리 상호작용 (3단계 클릭 시스템)
+---------------------------------------
+단계 1: 패널에서 갤러리 선택
+  → 이미지 정보 자동 표시 (제목 + 설명)
+  → 자동 전환 중지
+  → 정보 계속 유지
+
+단계 2: 첫 번째 이미지 클릭
+  → "Hold Image" 메시지 표시
+  → 모든 정보 사라짐
+  → 이미지 고정 상태 유지
+
+단계 3: 두 번째 이미지 클릭
+  → "Auto Mode 3Sec" 메시지 표시
+  → 다음 이미지로 전환
+  → 자동 전환 재개 (설정된 시간 간격)
+
+4.5 콘텐츠 관리 (크리에이터)
+---------------------------
+- 갤러리 생성, 수정, 삭제
+- 이미지 및 음악 파일 업로드
+- 엑셀 파일로 이미지 메타데이터 일괄 업로드
+- 갤러리 편집 시 파일 개별 교체 가능:
+  * 음악 파일만 교체
+  * 이미지만 추가
+  * 엑셀 파일만 업데이트
+- Firebase Storage를 통한 파일 관리
+
+4.6 관리자 기능
+---------------
+- 사용자 역할 관리 (일반 사용자 ↔ 크리에이터 전환)
+- 포인트 지급 및 조정
+- 모든 갤러리 및 콘텐츠 관리
+- 사용자 데이터 조회 및 편집
+- 시스템 설정 관리
+
+4.7 사용자 프로필
+-----------------
+- 프로필 정보 조회 및 수정
+- 포인트 현황 확인
+- 일일 보너스 수령 상태 확인
+- 저장된 음악 목록 관리
+- 거래 내역 조회
+
+4.8 검색 및 필터링
+------------------
+- 카테고리별 필터링
+- 키워드 검색
+- 크리에이터별 필터
+- 추천 콘텐츠 표시
+
+================================================================================
+5. 데이터베이스 구조 (Firestore)
+================================================================================
+
+5.1 users 컬렉션
+----------------
+경로: /users/{userId}
+
+필드:
+- email: string                      # 사용자 이메일
+- role: string                       # "user" | "creator" | "admin"
+- displayName: string (optional)     # 표시 이름
+- photoURL: string (optional)        # 프로필 사진 URL
+- dailyPoints: number                # 일일 포인트 (자정 초기화)
+- walletBalance: number              # 지갑 포인트 (영구)
+- totalPoints: number                # 전체 포인트 (계산값)
+- dailyBonusClaimed: boolean         # 일일 보너스 수령 여부
+- dailyBonusLastClaimed: timestamp   # 마지막 보너스 수령 시간
+- createdAt: timestamp               # 계정 생성 시간
+- lastLoginAt: timestamp             # 마지막 로그인 시간
+
+보안 규칙:
+- 본인 데이터만 읽기/쓰기 가능
+- 관리자는 모든 사용자 데이터 접근 가능
+
+5.2 galleries 컬렉션
+-------------------
+경로: /galleries/{galleryId}
+
+필드:
+- title: string                      # 갤러리 제목
+- category: string                   # 카테고리
+- audioSrc: string                   # 음악 파일 URL
+- zipFileUrl: string (optional)      # 4K ZIP 파일 URL
+- images: array                      # 이미지 배열
+  [
+    {
+      imageSrc: string,              # 이미지 URL
+      order: number,                 # 순서
+      name: string,                  # 이미지 제목
+      description: string            # 이미지 설명
+    },
+    ...
+  ]
+- uploadedBy: string                 # 업로더 UID
+- uploadedByEmail: string            # 업로더 이메일
+- createdBy: string                  # 생성자 UID (동일)
+- creator_name: string               # 크리에이터 이름
+- createdAt: timestamp               # 생성 시간
+- updatedAt: timestamp               # 수정 시간
+- viewCount: number                  # 조회수
+- likeCount: number                  # 좋아요 수
+
+보안 규칙:
+- 모든 인증된 사용자가 읽기 가능
+- 크리에이터와 관리자만 쓰기 가능
+- 소유자만 수정/삭제 가능
+
+5.3 pointTransactions 컬렉션
+----------------------------
+경로: /pointTransactions/{transactionId}
+
+필드:
+- userId: string                     # 사용자 UID
+- type: string                       # 거래 유형
+  * "daily_bonus": 일일 보너스
+  * "usage": 포인트 사용
+  * "admin_grant": 관리자 지급
+  * "purchase": 구매
+- amount: number                     # 포인트 양 (양수/음수)
+- description: string                # 거래 설명
+- source: string                     # 출처 ("ad", "purchase")
+- createdAt: timestamp               # 거래 시간
+
+보안 규칙:
+- 본인의 거래 내역만 읽기 가능
+- 쓰기는 서버 측에서만 가능 (클라이언트 차단)
+
+5.4 savedMusic 서브컬렉션
+-------------------------
+경로: /savedMusic/{userId}/tracks/{musicId}
+
+필드:
+- musicId: string                    # 음악 ID
+- userId: string                     # 사용자 UID
+- savedAt: timestamp                 # 저장 시간
+
+보안 규칙:
+- 본인의 저장 목록만 읽기/쓰기 가능
+
+5.5 categories 컬렉션
+--------------------
+경로: /categories/{categoryId}
+
+필드:
+- name: string                       # 카테고리 이름
+- order: number                      # 표시 순서
+- description: string (optional)     # 설명
+
+예시 카테고리:
+- Portrait (인물)
+- Street (거리)
+- Landscape (풍경)
+- Documentary (다큐멘터리)
+- Future&Sci-Fi (미래&SF)
+
+================================================================================
+6. API 엔드포인트
+================================================================================
+
+기본 URL: https://pixelplanet-95dd9.web.app/api
+또는 로컬: http://localhost:3001/api
+
+6.1 인증 (Authentication)
+-------------------------
+POST   /api/auth/signup              # 회원가입
+  Body: { email, password, displayName }
+  Response: { success, message, user }
+
+POST   /api/auth/login               # 로그인
+  Body: { email, password }
+  Response: { success, token, user }
+
+POST   /api/auth/logout              # 로그아웃
+  Headers: Authorization: Bearer {token}
+  Response: { success, message }
+
+GET    /api/auth/status              # 로그인 상태 확인
+  Headers: Authorization: Bearer {token}
+  Response: { success, user }
+
+6.2 포인트 (Points)
+-------------------
+GET    /api/points                   # 포인트 조회
+  Headers: Authorization: Bearer {token}
+  Response: { success, data: { totalPoints, dailyPoints, walletBalance, dailyBonusClaimed } }
+
+POST   /api/points/daily-bonus       # 일일 보너스 수령
+  Headers: Authorization: Bearer {token}
+  Response: { success, message, newBalance }
+
+POST   /api/points/use               # 포인트 사용
+  Headers: Authorization: Bearer {token}
+  Body: { amount, description }
+  Response: { success, message, newBalance }
+
+GET    /api/points/transactions      # 거래 내역 조회
+  Headers: Authorization: Bearer {token}
+  Query: ?limit=50&offset=0
+  Response: { success, transactions }
+
+POST   /api/points/add               # 포인트 추가 (관리자 전용)
+  Headers: Authorization: Bearer {token}
+  Body: { userId, amount, source }
+  Response: { success, message }
+
+6.3 갤러리 (Galleries)
+----------------------
+GET    /api/galleries                # 갤러리 목록 조회
+  Query: ?category={category}&search={keyword}
+  Response: { success, galleries }
+
+GET    /api/galleries/:id            # 특정 갤러리 조회
+  Response: { success, gallery }
+
+POST   /api/galleries                # 갤러리 업로드 (크리에이터 전용)
+  Headers: Authorization: Bearer {token}
+  Body: FormData (musicFile, imageFiles, excelFile, title, category)
+  Response: { success, galleryId }
+
+PUT    /api/galleries/:id            # 갤러리 수정
+  Headers: Authorization: Bearer {token}
+  Body: FormData (업데이트할 필드들)
+  Response: { success, message }
+
+DELETE /api/galleries/:id            # 갤러리 삭제
+  Headers: Authorization: Bearer {token}
+  Response: { success, message }
+
+6.4 사용자 (User)
+-----------------
+GET    /api/user/profile             # 프로필 조회
+  Headers: Authorization: Bearer {token}
+  Response: { success, user }
+
+PUT    /api/user/profile             # 프로필 업데이트
+  Headers: Authorization: Bearer {token}
+  Body: { displayName, photoURL }
+  Response: { success, message, user }
+
+GET    /api/user/role                # 역할 조회
+  Headers: Authorization: Bearer {token}
+  Response: { success, role }
+
+6.5 관리자 (Admin)
+------------------
+POST   /api/admin/users/:userId/role # 사용자 역할 변경
+  Headers: Authorization: Bearer {token}
+  Body: { role: "user" | "creator" | "admin" }
+  Response: { success, message }
+
+GET    /api/admin/users              # 모든 사용자 조회
+  Headers: Authorization: Bearer {token}
+  Response: { success, users }
+
+================================================================================
+7. 파일 업로드 및 스토리지
+================================================================================
+
+7.1 지원 파일 형식
+------------------
+- 음악: .mp3, .wav, .ogg
+- 이미지: .jpg, .jpeg, .png, .gif, .webp
+- 4K 고화질: .zip (이미지 압축 파일)
+- 메타데이터: .xlsx, .xls (엑셀 파일)
+
+7.2 엑셀 파일 형식
+------------------
+컬럼 구조: 3개 컬럼
+- 1열: 이미지번호 (1, 2, 3, ...)
+- 2열: 제목
+- 3열: 설명
+
+예시:
+┌────────────┬──────────────┬──────────────────────┐
+│ 이미지번호 │    제목      │        설명          │
+├────────────┼──────────────┼──────────────────────┤
+│     1      │  Opal Eyes   │ 편안한 일상복 스타일 │
+│     2      │ Summer Breeze│ 여름 휴가 룩         │
+│     3      │ Winter Night │ 겨울 데이트 코디     │
+└────────────┴──────────────┴──────────────────────┘
+
+주의사항:
+- 1행은 헤더 (자동으로 건너뜀)
+- 이미지번호는 1부터 시작
+- 모든 컬럼을 채우지 않아도 됨 (빈 칸 허용)
+
+7.3 Firebase Storage 구조
+--------------------------
+/gallery/
+  ├── {galleryId}/
+  │   ├── audio/
+  │   │   └── {timestamp}_music.mp3
+  │   ├── images/
+  │   │   ├── {timestamp}_image1.jpg
+  │   │   ├── {timestamp}_image2.jpg
+  │   │   └── ...
+  │   └── 4k/
+  │       └── {timestamp}_4k.zip
+
+7.4 파일 크기 제한
+------------------
+- 단일 이미지: 10MB
+- 음악 파일: 50MB
+- ZIP 파일: 500MB
+- 엑셀 파일: 1MB
+
+================================================================================
+8. 보안
+================================================================================
+
+8.1 인증 시스템
+---------------
+- Firebase Authentication (이메일/비밀번호)
+- JWT 토큰 기반 세션 관리
+- 토큰 유효기간: 7일
+- localStorage에 토큰 저장
+- 모든 API 요청에 Bearer 토큰 포함
+
+8.2 Firestore 보안 규칙
+-----------------------
+- 모든 데이터 접근은 인증 필수
+- 사용자는 본인 데이터만 읽기/쓰기 가능
+- 포인트 거래 내역은 읽기만 가능 (서버에서만 쓰기)
+- 역할 기반 권한 체크:
+  * isAdmin(): 관리자 권한 확인
+  * isCreatorOrAdmin(): 크리에이터 또는 관리자 확인
+  * isOwner(): 콘텐츠 소유자 확인
+
+8.3 Storage 보안 규칙
+---------------------
+- 인증된 사용자만 파일 읽기 가능
+- 크리에이터와 관리자만 파일 업로드 가능
+- 파일 크기 제한 적용
+- 허용된 MIME 타입만 업로드 가능
+
+8.4 CORS 정책
+-------------
+- 지정된 도메인에서만 API 접근 허용
+- 배포 환경: pixelplanet-95dd9.web.app
+- 개발 환경: localhost:3000
+- Preflight 요청 처리
+
+8.5 보안 헤더 (Helmet)
+----------------------
+- X-Frame-Options: SAMEORIGIN
+- X-Content-Type-Options: nosniff
+- X-XSS-Protection: 1; mode=block
+- Strict-Transport-Security 활성화
+
+================================================================================
+9. 환경 변수 (.env)
+================================================================================
+
+# Firebase 설정
+FIREBASE_API_KEY=...
+FIREBASE_AUTH_DOMAIN=pixelplanet-95dd9.firebaseapp.com
+FIREBASE_PROJECT_ID=pixelplanet-95dd9
+FIREBASE_STORAGE_BUCKET=pixelplanet-95dd9.appspot.com
+FIREBASE_MESSAGING_SENDER_ID=...
+FIREBASE_APP_ID=...
+
+# 서버 설정
+PORT=3001
+NODE_ENV=production
+
+# JWT 설정
+JWT_SECRET=...
+JWT_EXPIRES_IN=7d
+
+# CORS 설정
+CORS_ORIGIN=https://pixelplanet-95dd9.web.app
+
+================================================================================
+10. 배포 및 운영
+================================================================================
+
+10.1 NPM 스크립트
+-----------------
+npm start         # 프로덕션 서버 실행
+npm run dev       # 개발 서버 실행 (자동 재시작)
+npm run client    # 정적 파일 서버 실행 (포트 3000)
+npm test          # 테스트 실행
+npm run emulator  # Firebase 에뮬레이터 실행
+
+10.2 Firebase 배포
+------------------
+firebase deploy                      # 전체 배포
+firebase deploy --only hosting       # 호스팅만 배포
+firebase deploy --only functions     # Functions만 배포
+firebase deploy --only firestore     # Firestore 규칙만 배포
+firebase deploy --only storage       # Storage 규칙만 배포
+
+10.3 배포 환경
+--------------
+- 프로젝트 ID: pixelplanet-95dd9
+- 호스팅 URL: https://pixelplanet-95dd9.web.app
+- Functions 리전: us-central1
+- Firestore 위치: nam5 (North America)
+
+10.4 모니터링
+-------------
+- Firebase Console에서 실시간 모니터링
+- Cloud Functions 로그 확인
+- Storage 사용량 추적
+- Firestore 읽기/쓰기 모니터링
+- Authentication 활동 로그
+
+================================================================================
+11. 개발 가이드
+================================================================================
+
+11.1 로컬 개발 환경 설정
+------------------------
+1. 저장소 클론
+2. npm install로 의존성 설치
+3. .env 파일 생성 및 설정
+4. Firebase 프로젝트 설정
+5. npm run dev로 개발 서버 실행
+6. npm run client로 프론트엔드 서버 실행
+
+11.2 코드 구조
+--------------
+- 모듈화된 라우트 및 컨트롤러
+- 미들웨어 기반 인증 처리
+- Firebase SDK를 통한 데이터베이스 접근
+- 프로미스 기반 비동기 처리
+- 에러 핸들링 및 로깅
+
+11.3 테스트
+-----------
+- Jest를 사용한 유닛 테스트
+- Supertest를 사용한 API 테스트
+- Firebase 에뮬레이터를 사용한 통합 테스트
+
+11.4 디버깅
+-----------
+- Winston 로거 사용
+- console.log로 클라이언트 디버깅
+- Firebase Console에서 데이터 확인
+- 브라우저 개발자 도구 활용
+
+================================================================================
+12. 트러블슈팅
+================================================================================
+
+12.1 일반적인 문제
+------------------
+문제: Firebase 연결 오류
+해결: .env 파일의 Firebase 설정 확인
+
+문제: CORS 오류
+해결: CORS_ORIGIN 환경 변수가 클라이언트 URL과 일치하는지 확인
+
+문제: 토큰 만료
+해결: 다시 로그인하여 새 토큰 발급
+
+문제: 포인트 차감 실패
+해결: Firestore 트랜잭션 로그 확인, 동시성 문제 체크
+
+문제: 파일 업로드 실패
+해결: 파일 크기 및 형식 확인, Storage 권한 확인
+
+12.2 로그 확인
+--------------
+# Firebase Functions 로그
+firebase functions:log
+
+# 실시간 로그 스트리밍
+firebase functions:log --follow
+
+# 특정 함수 로그만 보기
+firebase functions:log --only api
+
+12.3 데이터베이스 백업
+----------------------
+- Firebase Console에서 수동 백업
+- 자동 백업 설정 권장
+- 중요 데이터는 정기적으로 내보내기
+
+================================================================================
+13. 성능 최적화
+================================================================================
+
+13.1 프론트엔드 최적화
+----------------------
+- 이미지 지연 로딩
+- 코드 스플리팅
+- 캐시 활용 (Cache-Control 헤더)
+- 불필요한 API 호출 최소화
+
+13.2 백엔드 최적화
+------------------
+- Firestore 인덱스 활용
+- 복합 쿼리 최적화
+- 페이지네이션 구현
+- 트랜잭션 최소화
+
+13.3 Storage 최적화
+-------------------
+- 이미지 압축
+- CDN 캐싱
+- 적절한 파일 형식 사용 (WebP 권장)
+
+================================================================================
+14. 향후 개발 계획
+================================================================================
+
+- [ ] 소셜 로그인 추가 (Google, Facebook)
+- [ ] 댓글 및 평가 시스템
+- [ ] 좋아요 및 공유 기능
+- [ ] 사용자 간 메시지 기능
+- [ ] 구독 시스템
+- [ ] 프리미엄 콘텐츠
+- [ ] 모바일 앱 개발
+- [ ] 알림 시스템 (푸시 알림)
+- [ ] 분석 대시보드 (크리에이터용)
+- [ ] 다국어 지원
+
+================================================================================
+15. 라이선스 및 연락처
+================================================================================
+
+라이선스: ISC
+버전: 2.0.0
+타입: ES Module
+
+문의사항이나 버그 리포트는 프로젝트 관리자에게 연락해주세요.
+
+================================================================================
+문서 업데이트: 2026-01-28
+================================================================================
