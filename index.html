@@ -1295,10 +1295,10 @@
             pointer-events: auto;
         }
 
-        /* PC모드: 볼륨 컨트롤을 플레이 버튼 우측에 배치 */
+        /* PC모드: 볼륨 컨트롤을 플레이 버튼 우측에 일정 간격으로 배치 */
         @media (min-width: 769px) {
             #volume-control {
-                left: calc(420px + (100vw - 420px) / 2 + 120px);
+                left: calc(420px + (100vw - 420px) / 2 + 115px);
                 transform: translateX(0);
             }
         }
@@ -1314,9 +1314,9 @@
                 left: 75%;
             }
 
-            /* 모바일 가로모드: 볼륨 컨트롤을 플레이 버튼 우측에 배치 */
+            /* 모바일 가로모드: 볼륨 컨트롤을 플레이 버튼 우측에 일정 간격으로 배치 */
             #volume-control {
-                left: calc(75% + 110px);
+                left: calc(75% + 115px);
                 transform: translateX(0);
             }
         }
@@ -1327,11 +1327,11 @@
             display: none !important;
         }
 
-        /* 모바일 세로모드: 볼륨 컨트롤을 플레이 버튼 우측에 배치 */
+        /* 모바일 세로모드: 볼륨 컨트롤을 플레이 버튼 우측에 일정 간격으로 배치 */
         @media (max-width: 768px) and (orientation: portrait) {
             body.mobile-portrait-mode #volume-control {
-                left: 50%;
-                transform: translateX(calc(-50% + 120px));
+                left: calc(50% + 115px);
+                transform: translateX(0);
             }
         }
 
