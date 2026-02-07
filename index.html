@@ -2254,10 +2254,6 @@
             <div id="gallery-wrapper">
                 <div id="image-gallery">
                 </div>
-                <!-- 음원 남은 시간 표시 -->
-                <div id="audio-timer" style="display: none; position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; z-index: 9998; font-family: monospace; backdrop-filter: blur(10px);">
-                    <span id="audio-current-time">0:00</span> / <span id="audio-duration">0:00</span>
-                </div>
                 <!-- 볼륨 조절 UI -->
                 <div id="volume-control" style="display: none; position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.3); color: white; padding: 10px 14px; border-radius: 25px; z-index: 1000; backdrop-filter: blur(10px); min-width: 180px;">
                     <div style="display: flex; align-items: center; gap: 8px;">
@@ -5521,7 +5517,6 @@
 
             if (currentAudio && currentAudio.src === audio.src) {
                 const mobileButton = document.getElementById('mobile-play-btn');
-                const audioTimer = document.getElementById('audio-timer');
 
                 if (currentAudio.paused) {
                     currentAudio.play();
@@ -5539,10 +5534,6 @@
                                 <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
                             </svg>
                         `;
-                    }
-                    // 재생 시 타이머 표시 (크리에이터/관리자만)
-                    if (audioTimer && (userRole === 'creator' || userRole === 'admin')) {
-                        audioTimer.style.display = 'block';
                     }
                     // 모바일 세로모드에서만 전체화면 전환
                     const isMobile = window.innerWidth <= 768;
@@ -5567,7 +5558,6 @@
                             </svg>
                         `;
                     }
-                    // 일시정지 시에도 타이머 유지 (숨기지 않음)
                 }
                 return;
             }
@@ -5594,46 +5584,6 @@
                 console.error('오디오 로드 오류:', e);
                 // 에러 발생 시에도 계속 진행 (캐시 에러는 무시)
             });
-
-            // 시간 포맷 함수
-            function formatTime(seconds) {
-                if (!isFinite(seconds) || isNaN(seconds)) return '0:00';
-                const mins = Math.floor(seconds / 60);
-                const secs = Math.floor(seconds % 60);
-                return `${mins}:${secs.toString().padStart(2, '0')}`;
-            }
-
-            // 오디오 타이머 표시
-            const audioTimer = document.getElementById('audio-timer');
-            const currentTimeDisplay = document.getElementById('audio-current-time');
-            const durationDisplay = document.getElementById('audio-duration');
-
-            // 메타데이터 로드 시 총 재생 시간 표시
-            currentAudio.addEventListener('loadedmetadata', () => {
-                if (durationDisplay) {
-                    durationDisplay.textContent = formatTime(currentAudio.duration);
-                }
-                // 크리에이터/관리자만 타이머 표시
-                if (audioTimer && (userRole === 'creator' || userRole === 'admin')) {
-                    audioTimer.style.display = 'block';
-                }
-            });
-
-            // 재생 시간 업데이트
-            currentAudio.addEventListener('timeupdate', () => {
-                if (currentTimeDisplay) {
-                    currentTimeDisplay.textContent = formatTime(currentAudio.currentTime);
-                }
-            });
-
-            // 재생 종료 시 타이머 숨김
-            currentAudio.addEventListener('ended', () => {
-                if (audioTimer) {
-                    audioTimer.style.display = 'none';
-                }
-            });
-
-            // 일시정지 시 타이머 유지 (숨기지 않음)
 
             currentAudio.play().catch(error => {
                 console.warn('오디오 재생 오류 (무시하고 계속):', error);
