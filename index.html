@@ -2301,7 +2301,20 @@
         let userRole = null;
         let userName = null;
         let currentUserId = null;  // 현재 로그인한 사용자의 UID
-        let currentLanguage = localStorage.getItem('language') || 'ko'; // 현재 언어 설정 (기본값: 한국어)
+
+        // 자동 언어 감지: 브라우저 언어가 한국어(ko)이면 한국어, 아니면 영어
+        function detectLanguage() {
+            const browserLang = navigator.language || navigator.userLanguage;
+            console.log('브라우저 언어 감지:', browserLang);
+            // 한국어 감지 (ko, ko-KR, ko-kr 등)
+            if (browserLang.toLowerCase().startsWith('ko')) {
+                console.log('한국어 사용자로 감지되었습니다.');
+                return 'ko';
+            }
+            console.log('영어 사용자로 감지되었습니다.');
+            return 'en';
+        }
+        let currentLanguage = detectLanguage(); // 자동 언어 설정
         let itemsPerPage = 8; // 한 페이지에 표시할 항목 수
         let totalItems = 0;
         let totalPages = 0;
@@ -7590,27 +7603,6 @@
             }
         }
 
-        // 언어 토글 함수
-        function toggleLanguage() {
-            // 언어 토글 (ko <-> en)
-            currentLanguage = currentLanguage === 'ko' ? 'en' : 'ko';
-
-            // localStorage에 저장
-            localStorage.setItem('language', currentLanguage);
-
-            // 화면에 표시되는 언어 코드 업데이트
-            updateLanguageDisplay();
-
-            console.log('언어 변경:', currentLanguage.toUpperCase());
-        }
-
-        // 언어 표시 업데이트 함수
-        function updateLanguageDisplay() {
-            const languageElements = document.querySelectorAll('#current-language');
-            languageElements.forEach(el => {
-                el.textContent = currentLanguage.toUpperCase();
-            });
-        }
 
         async function checkLoginStatus() {
             const loginStatusContainer = document.getElementById('login-status');
@@ -7707,7 +7699,6 @@
                                 <button id="slide-timer-button" class="slide-timer-button" onclick="toggleSlideSpeed()" data-seconds="3" title="슬라이드 자동전환 속도">⏱️</button>
                                 ${(userRole === 'creator') ? '<button id="upload-button" onclick="showUploadForm()">업로드</button>' : ''}
                                 ${(userRole === 'admin') ? '<button onclick="location.href=\'admin.html\'">관리자 페이지</button>' : ''}
-                                <button id="language-select-button" class="toggle-button" onclick="toggleLanguage()" title="언어 선택">🌐 <span id="current-language">KO</span></button>
                             </div>
                         </div>
                     `;
@@ -7792,7 +7783,6 @@
                     loginStatusContainer.innerHTML = `
                         <div style="display: flex; gap: 10px; align-items: center;">
                             <button onclick="showLoginSection()">로그인 / 회원가입</button>
-                            <button id="language-select-button" class="toggle-button" onclick="toggleLanguage()" title="언어 선택">🌐 <span id="current-language">KO</span></button>
                         </div>
                     `;
 
@@ -8859,9 +8849,6 @@
             await loadCategoriesFromFirestore();
 
             checkLoginStatus();
-
-            // 초기 언어 표시 업데이트 (로그인 상태가 확인되면 다시 한 번 업데이트됨)
-            setTimeout(updateLanguageDisplay, 500);
 
             document.getElementById('copy-link-button').addEventListener('click', copyToClipboard);
 
