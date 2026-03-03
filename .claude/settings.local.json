@@ -29,7 +29,9 @@
       "mcp__ide__executeCode",
       "Bash(python:*)",
       "Bash(if exist src dir /B /A src)",
-      "Bash(git revert:*)"
+      "Bash(git revert:*)",
+      "Bash(gcloud projects get-iam-policy:*)",
+      "Bash(firebase functions:list:*)"
     ],
     "deny": [],
     "ask": []
