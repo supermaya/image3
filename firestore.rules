@@ -19,11 +19,12 @@ service cloud.firestore {
 
     // 포인트 거래 내역
     match /pointTransactions/{transactionId} {
-      // 본인의 거래 내역만 읽을 수 있음
+      // 본인의 트랜잭션 생성 및 읽기 허용 (이미지 환전, 포인트 적립 등)
       allow read: if request.auth != null &&
-                  resource.data.userId == request.auth.uid;
-      // 쓰기는 서버 측에서만 (관리자 권한 필요)
-      allow write: if false;
+                  (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if request.auth != null &&
+                    (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if false;
     }
 
     // 관리자 권한 체크 함수
@@ -54,19 +55,33 @@ service cloud.firestore {
       return resource.data.keys().hasAny(['createdBy', 'uploaderId']);
     }
 
-    // 음악 컬렉션
+    // 음악 컬렉션 — read는 공개 (클라이언트에서 isUserGenerated 필터링)
+    // ※ Firestore 쿼리는 resource.data 조건부 규칙이 있으면 쿼리 전체를 거부하므로
+    //   "다른 유저의 User 갤러리 숨기기"는 fetchMusicPage의 currentUid 필터로 처리
     match /music/{musicId} {
-      // 누구나 음악 목록 읽기 가능 (공개)
       allow read: if true;
+      allow create: if isCreatorOrAdmin() ||
+        (request.auth != null &&
+         request.resource.data.isUserGenerated == true);
+      allow update: if isAdmin() ||
+                      (isCreatorOrAdmin() && (isOwner() || !hasOwnerField())) ||
+                      (request.auth != null && resource.data.isUserGenerated == true) ||
+                      (request.auth != null &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount'])) ||
+                      (request.auth != null && resource.data.isUserGenerated == true &&
+                       request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['imageUrl', 'imageCount', 'updatedAt', 'uploaderId', 'musicUrl']));
+      allow delete: if isAdmin() ||
+                      (isCreatorOrAdmin() && (isOwner() || !hasOwnerField()));
 
-      // 음악 업로드는 크리에이터 이상 가능
-      allow create: if isCreatorOrAdmin();
-
-      // 관리자는 모든 콘텐츠 수정/삭제 가능
-      // 크리에이터는 본인이 작성한 콘텐츠만 수정/삭제 가능
-      // 소유자 필드가 없는 경우(레거시 데이터) 크리에이터/admin 모두 수정/삭제 가능
-      allow update, delete: if isAdmin() ||
-                              (isCreatorOrAdmin() && (isOwner() || !hasOwnerField()));
+      // images 서브컬렉션 — 공개 읽기 (썸네일 표시용)
+      match /images/{imageId} {
+        allow read: if true;
+        allow create: if request.auth != null;
+        allow delete: if isAdmin() ||
+                        (request.auth != null &&
+                         get(/databases/$(database)/documents/music/$(musicId)).data.isUserGenerated == true);
+      }
     }
 
     // 저장된 음악
@@ -84,11 +99,11 @@ service cloud.firestore {
 
     // 카테고리
     match /categories/{categoryId} {
-      // 누구나 카테고리 읽기 가능 (공개)
       allow read: if true;
-
-      // 카테고리 생성/수정/삭제는 크리에이터 이상 가능
-      allow write: if isCreatorOrAdmin();
+      // 크리에이터/관리자 또는 AI 생성 카테고리(UserGen)는 인증 유저도 생성 가능
+      allow create: if isCreatorOrAdmin() ||
+        (request.auth != null && request.resource.data.isUserGenerated == true);
+      allow update, delete: if isCreatorOrAdmin();
     }
 
     // 갤러리 접근 로그
@@ -98,6 +113,25 @@ service cloud.firestore {
                   resource.data.userId == request.auth.uid;
       // 쓰기는 서버 측에서만
       allow write: if false;
+    }
+
+    // 앱 전역 설정 (섹션 숨김 등)
+    match /config/{configId} {
+      // 누구나 읽기 가능 (헤더 섹션 표시에 필요)
+      allow read: if true;
+      // 쓰기는 관리자만
+      allow write: if isAdmin();
+    }
+
+    // AI 생성 이미지 갤러리 (유저 서브컬렉션)
+    match /users/{uid}/galleries/{galleryId} {
+      // 본인만 읽기/쓰기/삭제
+      allow read, write, delete: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // 다중 갤러리 메타데이터 (이름, imageCount 등)
+    match /users/{uid}/userGalleries/{userGalleryId} {
+      allow read, write, delete: if request.auth != null && request.auth.uid == uid;
     }
   }
 }

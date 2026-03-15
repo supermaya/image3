@@ -4,50 +4,60 @@ service firebase.storage {
   match /b/{bucket}/o {
     // 4K ZIP 파일 - Signed URL을 통해서만 접근 가능
     match /gallery/4k-zips/{zipFile} {
-      // 읽기 완전 차단 (Signed URL을 통해서만 다운로드 가능)
       allow read: if false;
-
-      // 크리에이터 또는 관리자만 업로드 가능 (최대 200MB)
-      allow write: if request.auth != null &&
-                      (request.auth.token.role == 'admin' ||
-                       request.auth.token.role == 'creator') &&
-                      request.resource.size < 200 * 1024 * 1024;
-
-      // 크리에이터 또는 관리자만 삭제 가능
-      allow delete: if request.auth != null &&
-                       (request.auth.token.role == 'admin' ||
-                        request.auth.token.role == 'creator');
+      allow write: if isAdminOrCreator();
+      allow delete: if isAdminOrCreator();
     }
 
-    // 갤러리 공개 영역 - 누구나 읽기 가능, 크리에이터/관리자 쓰기 가능
+    // 갤러리 공개 영역
     match /gallery/{allFiles=**} {
-      // 누구나 읽기 가능 (공개)
       allow read: if true;
-
-      // 크리에이터 또는 관리자만 쓰기/삭제 가능 (커스텀 클레임)
-      allow write, delete: if request.auth != null &&
-                           (request.auth.token.role == 'admin' ||
-                            request.auth.token.role == 'creator') &&
+      allow write, delete: if isAdminOrCreator() &&
                            request.resource.size < 50 * 1024 * 1024;
+    }
+
+    // 콘텐츠(music) 업로드 영역 - 관리자/크리에이터만 쓰기 가능
+    match /music/{docId}/{allFiles=**} {
+      allow read: if true;
+      allow write: if isAdminOrCreator() &&
+                   request.resource.size < 200 * 1024 * 1024;
+      allow delete: if isAdminOrCreator();
     }
 
     // 개인 업로드 영역 - 본인만 접근
     match /users/{userId}/{allFiles=**} {
-      // 본인만 읽기 가능
       allow read: if request.auth != null && request.auth.uid == userId;
-
-      // 본인만 쓰기 가능
       allow write: if request.auth != null &&
                    request.auth.uid == userId &&
                    request.resource.size < 50 * 1024 * 1024;
-
-      // 본인만 삭제 가능
       allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // AI 생성 이미지 — user_img/{userName}/gallery/
+    // 본인만 읽기/쓰기/삭제 가능 (로그인 필요)
+    match /user_img/{userName}/gallery/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null &&
+                   request.resource.size < 50 * 1024 * 1024;
+      allow delete: if request.auth != null;
     }
 
     // 그 외 모든 경로는 차단
     match /{allPaths=**} {
       allow read, write, delete: if false;
+    }
+
+    // ─── 공통 헬퍼 함수 ───────────────────────────────────────────────
+    function isAdminOrCreator() {
+      return request.auth != null && (
+        // 1) Custom Claims — getIdToken(true) 후 즉시 적용
+        request.auth.token.role == 'admin' ||
+        request.auth.token.role == 'creator' ||
+        // 2) Firestore fallback — 클레임 갱신 전에도 동작
+        (firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+         (firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'creator'))
+      );
     }
   }
 }

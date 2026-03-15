@@ -1,0 +1,92 @@
+{
+  "16": {
+    "inputs": {
+      "unet_name": "z_Image\\z_image_turbo_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader"
+  },
+  "17": {
+    "inputs": {
+      "vae_name": "z_Image\\ae.safetensors"
+    },
+    "class_type": "VAELoader"
+  },
+  "49": {
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "lumina2"
+    },
+    "class_type": "CLIPLoader"
+  },
+  "13": {
+    "inputs": {
+      "width": 1080,
+      "height": 1920,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage"
+  },
+  "120": {
+    "inputs": {
+      "text": "Cinematic film still, epic photography, dramatic directional light, A single woman in her 20,{sleek bob hair | natural wavy long hair | high ponytail | loose bun | trendy hime cut}, {minimal makeup with glowing skin | light natural makeup with defined brows and blush | bold red lip with subtle eye makeup | cat-eye liner with nude lips}, expressing a {confident relaxed demeanor | playful energetic aura | calm contemplative presence | chic sophisticated vibe}, {oversized knit sweater in camel/charcoal/moss green | cropped hooded sweatshirt in oatmeal/deep purple/forest green | ribbed long-sleeve tee with delicate details | vintage graphic tee layered with knit cardigan | houndstooth oversized blazer over white tee | quilted bomber jacket in khaki/black/navy}.Bottom: {wide-leg denim jeans light/dark wash | straight-fit corduroy pants beige/brown/burgundy | pleated midi skirt tartan/solid black/dark floral | vegan leather mini skirt black/deep brown | cargo pants khaki/grey/cream | tailored wool-blend slacks}, {classic trench coat beige/khaki | oversized wool single-breasted coat black/grey/brown | cropped matte puffer jacket | soft fleece jacket cream/pastel blue/dusty pink | distressed denim jacket | leather biker jacket}, {chunky loafers with tall socks | knee-high leather boots flat/low heel | retro platform sneakers | modern combat boots | heeled ankle boots | contemporary ballet flats},{oversized vegan-leather tote | mini croissant shoulder bag | silver hoop earrings | layered delicate necklaces | beanie black/cream/brown | vintage logo baseball cap | thin knit scarf | rectangular sunglasses | smartwatch | statement belt},{walking casually looking over shoulder | leaning on brick wall hands in pockets | one leg bent natural weight shift | adjusting accessory looking down | full-body holding small coffee cup | facing away turning head to camera},{bench perch one leg dangling | low stool thoughtful gaze | cross-legged floor cushion smiling | casual street-curb squat | cafe window seat looking out | kneeling on step looking up}.{twirling skirt with motion blur | taking a selfie with smartphone | browsing boutique clothes | picking up item engaged | candid laugh while walking | adjusting hair natural motion}.Ultra-shallow depth of field, creamy bokeh, slightly dim ambient light; razor-sharp focus,FUJIFILM X-T5, manual exposure, 1/75 sec, f/2.8, ISO 1000, spot metering, +0.67 EV, no flash, 50mm focal length (75mm equivalent), SIGMA 18–50mm F2.8 DC DN Contemporary, 300 DPI, editorial print quality",
+      "seed": 0,
+      "autorefresh": "Yes"
+    },
+    "class_type": "DPRandomGenerator",
+    "_meta": { "title": "DP Random Generator" }
+  },
+  "121": {
+    "inputs": {
+      "clip": ["49", 0],
+      "text": ["120", 0]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "98": {
+    "inputs": {
+      "clip": ["49", 0],
+      "text": "nsfw, dull complexion, thin skin, flat chest, small chest, short legs, long face, narrow nose, flat nose, square chin, high cheekbones, freckles, moles on the face, age spots, red face"
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "3": {
+    "inputs": {
+      "seed": 821983831905647,
+      "steps": 10,
+      "cfg": 1.1,
+      "sampler_name": "er_sde",
+      "scheduler": "sgm_uniform",
+      "denoise": 1.0,
+      "model": ["16", 0],
+      "positive": ["121", 0],
+      "negative": ["98", 0],
+      "latent_image": ["13", 0]
+    },
+    "class_type": "KSampler"
+  },
+  "66": {
+    "inputs": {
+      "samples": ["3", 0],
+      "vae": ["17", 0],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    },
+    "class_type": "VAEDecodeTiled"
+  },
+  "56": {
+    "inputs": {
+      "anything": ["66", 0]
+    },
+    "class_type": "easy cleanGpuUsed"
+  },
+  "85": {
+    "inputs": {
+      "images": ["56", 0],
+      "filename_prefix": "image/VISVIS/ZIT/%date:hhmmss%"
+    },
+    "class_type": "SaveImage"
+  }
+}

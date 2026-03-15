@@ -1,0 +1,92 @@
+{
+  "16": {
+    "inputs": {
+      "unet_name": "z_Image\\z_image_turbo_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader"
+  },
+  "17": {
+    "inputs": {
+      "vae_name": "z_Image\\ae.safetensors"
+    },
+    "class_type": "VAELoader"
+  },
+  "49": {
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "lumina2"
+    },
+    "class_type": "CLIPLoader"
+  },
+  "13": {
+    "inputs": {
+      "width": 1080,
+      "height": 1920,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage"
+  },
+  "107": {
+    "inputs": {
+      "prompt": "1girl, in her 20s, slender body, subtle sensual elegance, looking at the camera, facing forward, confident eye contact, {Korean woman|Japanese woman|Chinese woman|Thai woman|Vietnamese woman|Filipina woman|mixed Asian woman|Caucasian woman|European woman|Mediterranean woman|Latina woman|Brazilian woman|African woman|mixed race woman|Middle Eastern woman}, {slender athletic body|fit toned body|lean fitness model body|yoga instructor body|runner physique|pilates toned body|sporty toned body|athletic hourglass body|flexible yoga body|strong athletic build}, {long legs, short torso|long legs, narrow waist|long legs, balanced proportions|long legs, athletic hips|long legs, slim waist, toned thighs|long legs, sculpted legs|long legs, elegant proportions|long legs, narrow waist, athletic hips}, {toned abs|lightly defined abs|flat stomach|athletic core|defined waistline|toned legs|athletic thighs|strong legs|toned arms|defined shoulders|balanced athletic physique}, {subtle hourglass silhouette|sporty slim silhouette|balanced athletic silhouette|elegant fitness silhouette|dynamic athletic silhouette|sleek yoga body silhouette}, {long straight hair|long wavy hair|loose beach waves|high ponytail|low ponytail|messy bun|sleek bun|double buns|braided ponytail|french braids|dutch braids|box braids|afro curly hair|short bob haircut|blunt bob|shoulder length layered hair|pixie cut|side swept hair|half-up half-down hairstyle|long layered hair|sporty ponytail|gym workout ponytail|wind-blown hair}, {black hair|dark brown hair|light brown hair|ash brown hair|chestnut hair|dark auburn hair|golden blonde hair|platinum blonde hair|silver hair|pastel pink hair|rose gold hair|blue black hair}, {light makeup|sporty makeup|natural makeup|soft glam makeup|glossy lips with light blush|clean athletic makeup|sun-kissed makeup|minimal makeup look}, {gentle smile|bright cheerful smile|playful grin|confident editorial expression|soft dreamy expression|focused athletic expression|calm serene expression|flirty playful smile|thoughtful contemplative expression|energetic excited smile|subtle smirk|shy smile|determined competitive look|relaxed post-workout expression|surprised playful expression|tender affectionate smile|cool fashion model neutral expression|seductive soft gaze|joyful laugh expression|serious concentrated training expression}, looking at the camera, natural relaxed posture, {small stud earrings|minimal hoop earrings|sporty choker|fitness smart watch|no accessories}, {luxury performance sports bra|designer athletic crop top|premium compression sports bra|high-end seamless sports bra|luxury yoga crop top|premium training tank top}, {solid color performance fabric|subtle tonal pattern|geometric athletic pattern|gradient color design|mesh panel texture|ribbed compression fabric}, {minimal logo print|modern geometric graphics|luxury monogram pattern|abstract artistic print|neon graffiti graphics|street art graffiti pattern|cyberpunk digital graphics|futuristic tech pattern|bold color-block graphics|luxury sports brand typography|dynamic motion lines pattern|spray-paint graffiti design}, {premium sculpting yoga leggings|luxury high-waist compression leggings|designer athleisure leggings|premium running shorts|luxury athletic skort|high-end biker shorts|premium training shorts|designer tennis skirt|luxury performance track pants|premium athleisure joggers}, footwear: {running shoes|training sneakers|crossfit shoes|tennis shoes|athletic sneakers|barefoot for yoga}, {stretching arms overhead|warm-up stretching|yoga tree pose|warrior yoga pose|deep squat exercise|lunges workout|cool-down stretching|pilates balance pose|relaxed standing pose|casual walking pose|natural stretch pose}, {close-up portrait|chest-up portrait|natural lifestyle portrait|editorial lifestyle framing}, {50mm portrait lens look|85mm portrait lens look|natural human-eye perspective}, {soft natural daylight|golden hour sunlight|window light portrait|soft diffused daylight|warm sunset light}, background: {modern luxury gym interior|urban rooftop workout space|city park jogging path|minimal yoga studio with natural light|sunset beach running path|forest trail running course|indoor pilates studio|urban street workout park}, high fashion sportswear campaign, athletic lifestyle branding, ultra realistic, professional sports photography, depth of field, sharp focus, 8k, RAW photo, high detail, professional camera, commercial fitness photography"
+    },
+    "class_type": "CR Prompt Text"
+  },
+  "111": {
+    "inputs": {
+      "text": ["107", 0],
+      "seed": 0,
+      "autorefresh": "Yes"
+    },
+    "class_type": "DPRandomGenerator",
+    "_meta": { "title": "DP Random Generator" }
+  },
+  "97": {
+    "inputs": {
+      "clip": ["49", 0],
+      "text": ["111", 0]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "98": {
+    "inputs": {
+      "clip": ["49", 0],
+      "text": ""
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "3": {
+    "inputs": {
+      "seed": 989672442819102,
+      "steps": 10,
+      "cfg": 1.1,
+      "sampler_name": "er_sde",
+      "scheduler": "sgm_uniform",
+      "denoise": 1.0,
+      "model": ["16", 0],
+      "positive": ["97", 0],
+      "negative": ["98", 0],
+      "latent_image": ["13", 0]
+    },
+    "class_type": "KSampler"
+  },
+  "66": {
+    "inputs": {
+      "samples": ["3", 0],
+      "vae": ["17", 0],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    },
+    "class_type": "VAEDecodeTiled"
+  },
+  "85": {
+    "inputs": {
+      "images": ["66", 0],
+      "filename_prefix": "image/VISVIS/API/%date:hhmmss%"
+    },
+    "class_type": "SaveImage"
+  }
+}

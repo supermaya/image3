@@ -1,0 +1,106 @@
+{
+  "16": {
+    "inputs": {
+      "unet_name": "z_Image\\z_image_turbo_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader"
+  },
+  "17": {
+    "inputs": {
+      "vae_name": "z_Image\\ae.safetensors"
+    },
+    "class_type": "VAELoader"
+  },
+  "49": {
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "lumina2"
+    },
+    "class_type": "CLIPLoader"
+  },
+  "13": {
+    "inputs": {
+      "width": 1080,
+      "height": 1920,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage"
+  },
+  "110": {
+    "inputs": {
+      "prompt": "OBbllai"
+    },
+    "class_type": "CR Prompt Text"
+  },
+  "107": {
+    "inputs": {
+      "prompt": "{검은 머리|갈색 머리|금발|분홍 머리|은발}, {옅은 화장|스모키 화장|광택 입술과 블러셔|자연스러운 화장}을 한 20대 한국 여성이 {다이아몬드 귀걸이|진주 목걸이|선그래스|액세서리 없음}, (긴 다리, 짧은 상체, 좁은 허리, 자연스럽게 늘어진 작은 가슴), (성적으로 암시적인), 가벼운 미소, 매혹적인 미소, 윤기 나는 입술을 묘사한 아름다운 포스터. {크롭탑|스트랩리스 톱|레이스 디테일 탑|캐미솔 레이어드 탑}과 {마이크로 미니스커트|하이웨이스트 미니스커트|테일러드 쇼츠|로우라이즈 패션 스커트}를 입고 {세련된 스트리트 패션 스타일|하이패션 런웨이 스타일|인스타그램 패션 인플루언서 스타일|트렌디한 도시 패션 스타일},{자신감 있는 포즈|자연스러운 워킹 포즈|스타일링을 강조하는 포즈|패션 화보 촬영 장면|스트리트 패션 스냅 스타일},배경에는 {야간 도시 불빛|최고급 쇼핑몰|대도시 골목길|현대적인 아파트 옥상|영화 스튜디오 조명|해변 일몰 풍경|해변 일출 풍경}."
+    },
+    "class_type": "CR Prompt Text"
+  },
+  "109": {
+    "inputs": {
+      "prompt1": ["110", 0],
+      "prompt2": ["107", 0],
+      "separator": ","
+    },
+    "class_type": "easy promptConcat"
+  },
+  "111": {
+    "inputs": {
+      "text": ["109", 0],
+      "seed": 0,
+      "autorefresh": "Yes"
+    },
+    "class_type": "DPRandomGenerator",
+    "_meta": { "title": "DP Random Generator" }
+  },
+  "97": {
+    "inputs": {
+      "clip": ["49", 0],
+      "text": ["111", 0]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "98": {
+    "inputs": {
+      "clip": ["49", 0],
+      "text": ""
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "3": {
+    "inputs": {
+      "seed": 989672442819102,
+      "steps": 10,
+      "cfg": 1.1,
+      "sampler_name": "er_sde",
+      "scheduler": "sgm_uniform",
+      "denoise": 1.0,
+      "model": ["16", 0],
+      "positive": ["97", 0],
+      "negative": ["98", 0],
+      "latent_image": ["13", 0]
+    },
+    "class_type": "KSampler"
+  },
+  "66": {
+    "inputs": {
+      "samples": ["3", 0],
+      "vae": ["17", 0],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    },
+    "class_type": "VAEDecodeTiled"
+  },
+  "85": {
+    "inputs": {
+      "images": ["66", 0],
+      "filename_prefix": "image/VISVIS/API/%date:hhmmss%"
+    },
+    "class_type": "SaveImage"
+  }
+}

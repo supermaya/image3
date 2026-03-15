@@ -1,0 +1,92 @@
+{
+  "16": {
+    "inputs": {
+      "unet_name": "z_Image\\z_image_turbo_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader"
+  },
+  "17": {
+    "inputs": {
+      "vae_name": "z_Image\\ae.safetensors"
+    },
+    "class_type": "VAELoader"
+  },
+  "49": {
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "lumina2"
+    },
+    "class_type": "CLIPLoader"
+  },
+  "13": {
+    "inputs": {
+      "width": 1080,
+      "height": 1920,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage"
+  },
+  "120": {
+    "inputs": {
+      "text": "{크롭 니트 탑|스트랩리스 패션 톱|레이스 포인트 패션 탑|시스루 레이어드 캐미솔}과 {마이크로 미니스커트|슬림핏 미니스커트|패션 쇼츠|로우라이즈 트렌디 스커트}를 입은 한국 여성,{인스타그램 패션 인플루언서 스타일|트렌디 스트리트 패션|하이패션 매거진 스타일|도시적인 패션 화보 스타일},자연스러운 포즈, 카메라를 향한 자신감 있는 시선,패션 화보 촬영, 스트리트 스타일 스냅, 트렌디한 스타일링 강조",
+      "seed": 0,
+      "autorefresh": "Yes"
+    },
+    "class_type": "DPRandomGenerator",
+    "_meta": { "title": "DP Random Generator" }
+  },
+  "121": {
+    "inputs": {
+      "clip": ["49", 0],
+      "text": ["120", 0]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "98": {
+    "inputs": {
+      "clip": ["49", 0],
+      "text": "nsfw, dull complexion, thin skin, flat chest, small chest, short legs, long face, narrow nose, flat nose, square chin, high cheekbones, freckles, moles on the face, age spots, red face"
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "3": {
+    "inputs": {
+      "seed": 821983831905647,
+      "steps": 10,
+      "cfg": 1.1,
+      "sampler_name": "er_sde",
+      "scheduler": "sgm_uniform",
+      "denoise": 1.0,
+      "model": ["16", 0],
+      "positive": ["121", 0],
+      "negative": ["98", 0],
+      "latent_image": ["13", 0]
+    },
+    "class_type": "KSampler"
+  },
+  "66": {
+    "inputs": {
+      "samples": ["3", 0],
+      "vae": ["17", 0],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    },
+    "class_type": "VAEDecodeTiled"
+  },
+  "56": {
+    "inputs": {
+      "anything": ["66", 0]
+    },
+    "class_type": "easy cleanGpuUsed"
+  },
+  "85": {
+    "inputs": {
+      "images": ["56", 0],
+      "filename_prefix": "image/VISVIS/ZIT/%date:hhmmss%"
+    },
+    "class_type": "SaveImage"
+  }
+}

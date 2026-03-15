@@ -1,8 +1,12 @@
 // Firebase 설정 및 초기화
+import { config as dotenvConfig } from 'dotenv';
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
+
+// ES Module에서 firebase.js가 먼저 로드될 수 있으므로 여기서 직접 dotenv 로드
+dotenvConfig();
 
 // Firebase 설정 (환경변수에서 가져오기)
 const firebaseConfig = {
